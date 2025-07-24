@@ -1,6 +1,5 @@
 ﻿namespace GitHubCrawler
 {
-    using GetSomeInput;
     using System;
     using System.Collections.Generic;
     using System.Linq;
@@ -9,17 +8,18 @@
     using System.Threading.Tasks;
 
     /// <summary>
-    /// GitHub repository crawler.
+    /// GitHub repository crawler that implements IDisposable for proper resource cleanup.
     /// </summary>
-    public class GitHubRepoCrawler
+    public class GitHubRepoCrawler : IDisposable
     {
-        private readonly HttpClient _httpClient = null;
+        private HttpClient _httpClient = null;
         private readonly string _githubToken = null;
+        private bool _disposed = false;
 
         /// <summary>
-        /// GitHub repository crawler.
+        /// Initializes a new instance of the GitHubRepoCrawler class.
         /// </summary>
-        /// <param name="token">GitHub token.</param>
+        /// <param name="token">Optional GitHub personal access token for authenticated requests.</param>
         public GitHubRepoCrawler(string token = null)
         {
             _httpClient = new HttpClient();
@@ -32,61 +32,75 @@
             }
         }
 
-        public async IAsyncEnumerable<string> GetRepositoryContentsAsync(string gitUrl)
+        /// <summary>
+        /// Asynchronously retrieves all file URLs from a GitHub repository.
+        /// </summary>
+        /// <param name="gitUrl">The GitHub repository URL.</param>
+        /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+        /// <returns>An async enumerable of file download URLs.</returns>
+        /// <exception cref="ObjectDisposedException">Thrown when this method is called after the object has been disposed.</exception>
+        /// <exception cref="ArgumentException">Thrown when the provided URL is invalid.</exception>
+        /// <exception cref="OperationCanceledException">Thrown when the operation is cancelled.</exception>
+        public async IAsyncEnumerable<string> GetRepositoryContentsAsync(
+            string gitUrl, 
+            [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default)
         {
+            ThrowIfDisposed();
+
             var (owner, repo) = ParseGitUrl(gitUrl);
             if (string.IsNullOrEmpty(owner) || string.IsNullOrEmpty(repo))
             {
                 throw new ArgumentException("Invalid GitHub repository URL");
             }
 
-            await foreach (var url in CrawlDirectoryAsync(owner, repo, ""))
+            await foreach (var url in CrawlDirectoryAsync(owner, repo, "", cancellationToken))
             {
                 yield return url;
             }
         }
 
-        public async Task<GitHubFileResponse> GetFileContentsAsync(string url)
+        /// <summary>
+        /// Asynchronously downloads file contents from a GitHub URL.
+        /// </summary>
+        /// <param name="url">The file download URL.</param>
+        /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+        /// <returns>A GitHubFileResponse containing the file content and metadata.</returns>
+        /// <exception cref="ObjectDisposedException">Thrown when this method is called after the object has been disposed.</exception>
+        /// <exception cref="ArgumentException">Thrown when the URL is null or empty.</exception>
+        /// <exception cref="Exception">Thrown when the file cannot be fetched.</exception>
+        /// <exception cref="OperationCanceledException">Thrown when the operation is cancelled.</exception>
+        public async Task<GitHubFileResponse> GetFileContentsAsync(
+            string url, 
+            System.Threading.CancellationToken cancellationToken = default)
         {
+            ThrowIfDisposed();
+
             if (string.IsNullOrWhiteSpace(url))
                 throw new ArgumentException("Download URL cannot be null or empty.", nameof(url));
 
-            try
-            {
-                var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-                var contentBytes = await response.Content.ReadAsByteArrayAsync();
+            var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            var contentBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
 
-                return new GitHubFileResponse
-                {
-                    Content = contentBytes,
-                    ContentType = response.Content.Headers.ContentType?.ToString(),
-                    StatusCode = response.StatusCode,
-                    FinalUrl = response.RequestMessage.RequestUri,
-                    Headers = response.Headers.ToDictionary(
-                        h => h.Key,
-                        h => h.Value
-                    )
-                };
-            }
-            catch (HttpRequestException ex)
+            return new GitHubFileResponse
             {
-                throw new Exception($"Failed to fetch file from GitHub: {ex.Message}", ex);
-            }
+                Content = contentBytes,
+                ContentType = response.Content.Headers.ContentType?.ToString(),
+                StatusCode = response.StatusCode,
+                FinalUrl = response.RequestMessage.RequestUri,
+                Headers = response.Headers.ToDictionary(
+                    h => h.Key,
+                    h => h.Value
+                )
+            };
         }
 
-        private async IAsyncEnumerable<string> CrawlDirectoryAsync(string owner, string repo, string path)
+        private async IAsyncEnumerable<string> CrawlDirectoryAsync(string owner, string repo, string path, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default)
         {
+            ThrowIfDisposed();
+
             var apiUrl = $"https://api.github.com/repos/{owner}/{repo}/contents/{path}";
 
-            HttpResponseMessage response;
-            try
-            {
-                response = await _httpClient.GetAsync(apiUrl);
-            }
-            catch (HttpRequestException ex)
-            {
-                throw new Exception($"Network error while crawling repository: {ex.Message}", ex);
-            }
+            HttpResponseMessage response = await _httpClient.GetAsync(apiUrl, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -98,25 +112,19 @@
                 throw new Exception($"API request failed: {response.StatusCode}");
             }
 
-            List<GitHubContent> items;
-            try
-            {
-                var json = await response.Content.ReadAsStringAsync();
-                items = JsonSerializer.Deserialize<List<GitHubContent>>(json);
-            }
-            catch (JsonException ex)
-            {
-                throw new Exception($"Error parsing GitHub API response: {ex.Message}", ex);
-            }
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            List<GitHubContent> items = JsonSerializer.Deserialize<List<GitHubContent>>(json);
 
             foreach (var item in items)
             {
-                if (!String.IsNullOrEmpty(item.DownloadUrl)) 
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (!String.IsNullOrEmpty(item.DownloadUrl))
                     yield return item.DownloadUrl;
 
                 if (item.Type == "dir")
                 {
-                    await foreach (var subItem in CrawlDirectoryAsync(owner, repo, item.Path))
+                    await foreach (var subItem in CrawlDirectoryAsync(owner, repo, item.Path, cancellationToken))
                     {
                         yield return subItem;
                     }
@@ -151,6 +159,47 @@
             }
 
             return (null, null);
+        }
+
+        /// <summary>
+        /// Throws an ObjectDisposedException if this instance has been disposed.
+        /// </summary>
+        private void ThrowIfDisposed()
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(GitHubRepoCrawler));
+            }
+        }
+
+        /// <summary>
+        /// Releases all resources used by the GitHubRepoCrawler.
+        /// </summary>
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Releases the unmanaged resources used by the GitHubRepoCrawler and optionally releases the managed resources.
+        /// </summary>
+        /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    // Dispose managed resources
+                    _httpClient?.Dispose();
+                    _httpClient = null;
+                }
+
+                // Note: If there were unmanaged resources, they would be freed here
+
+                _disposed = true;
+            }
         }
     }
 }

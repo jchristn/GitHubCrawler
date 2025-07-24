@@ -76,14 +76,53 @@
         </member>
         <member name="T:GitHubCrawler.GitHubRepoCrawler">
             <summary>
-            GitHub repository crawler.
+            GitHub repository crawler that implements IDisposable for proper resource cleanup.
             </summary>
         </member>
         <member name="M:GitHubCrawler.GitHubRepoCrawler.#ctor(System.String)">
             <summary>
-            GitHub repository crawler.
+            Initializes a new instance of the GitHubRepoCrawler class.
             </summary>
-            <param name="token">GitHub token.</param>
+            <param name="token">Optional GitHub personal access token for authenticated requests.</param>
+        </member>
+        <member name="M:GitHubCrawler.GitHubRepoCrawler.GetRepositoryContentsAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Asynchronously retrieves all file URLs from a GitHub repository.
+            </summary>
+            <param name="gitUrl">The GitHub repository URL.</param>
+            <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+            <returns>An async enumerable of file download URLs.</returns>
+            <exception cref="T:System.ObjectDisposedException">Thrown when this method is called after the object has been disposed.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when the provided URL is invalid.</exception>
+            <exception cref="T:System.OperationCanceledException">Thrown when the operation is cancelled.</exception>
+        </member>
+        <member name="M:GitHubCrawler.GitHubRepoCrawler.GetFileContentsAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Asynchronously downloads file contents from a GitHub URL.
+            </summary>
+            <param name="url">The file download URL.</param>
+            <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+            <returns>A GitHubFileResponse containing the file content and metadata.</returns>
+            <exception cref="T:System.ObjectDisposedException">Thrown when this method is called after the object has been disposed.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when the URL is null or empty.</exception>
+            <exception cref="T:System.Exception">Thrown when the file cannot be fetched.</exception>
+            <exception cref="T:System.OperationCanceledException">Thrown when the operation is cancelled.</exception>
+        </member>
+        <member name="M:GitHubCrawler.GitHubRepoCrawler.ThrowIfDisposed">
+            <summary>
+            Throws an ObjectDisposedException if this instance has been disposed.
+            </summary>
+        </member>
+        <member name="M:GitHubCrawler.GitHubRepoCrawler.Dispose">
+            <summary>
+            Releases all resources used by the GitHubRepoCrawler.
+            </summary>
+        </member>
+        <member name="M:GitHubCrawler.GitHubRepoCrawler.Dispose(System.Boolean)">
+            <summary>
+            Releases the unmanaged resources used by the GitHubRepoCrawler and optionally releases the managed resources.
+            </summary>
+            <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
         </member>
     </members>
 </doc>
