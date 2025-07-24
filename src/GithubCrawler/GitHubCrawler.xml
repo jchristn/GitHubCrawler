@@ -1,0 +1,89 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GitHubCrawler</name>
+    </assembly>
+    <members>
+        <member name="T:GitHubCrawler.GitHubContent">
+            <summary>
+            GitHub content.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubContent.Name">
+            <summary>
+            Name.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubContent.Path">
+            <summary>
+            Path.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubContent.Type">
+            <summary>
+            Type.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubContent.HtmlUrl">
+            <summary>
+            HTML URL.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubContent.DownloadUrl">
+            <summary>
+            Download URL.
+            </summary>
+        </member>
+        <member name="M:GitHubCrawler.GitHubContent.#ctor">
+            <summary>
+            GitHub content.
+            </summary>
+        </member>
+        <member name="T:GitHubCrawler.GitHubFileResponse">
+            <summary>
+            GitHub file response.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubFileResponse.Content">
+            <summary>
+            Content.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubFileResponse.ContentType">
+            <summary>
+            Content type.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubFileResponse.StatusCode">
+            <summary>
+            Status code.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubFileResponse.Headers">
+            <summary>
+            Headers.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubFileResponse.FinalUrl">
+            <summary>
+            Final URL.
+            </summary>
+        </member>
+        <member name="M:GitHubCrawler.GitHubFileResponse.#ctor">
+            <summary>
+            GitHub file response.
+            </summary>
+        </member>
+        <member name="T:GitHubCrawler.GitHubRepoCrawler">
+            <summary>
+            GitHub repository crawler.
+            </summary>
+        </member>
+        <member name="M:GitHubCrawler.GitHubRepoCrawler.#ctor(System.String)">
+            <summary>
+            GitHub repository crawler.
+            </summary>
+            <param name="token">GitHub token.</param>
+        </member>
+    </members>
+</doc>

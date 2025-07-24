@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ApplicationIcon>logo.ico</ApplicationIcon>
+		<GenerateDocumentationFile>True</GenerateDocumentationFile>
+		<DocumentationFile>GitHubCrawler.xml</DocumentationFile>
+		<Title>GitHubCrawler</Title>
+		<Authors>Joel Christner</Authors>
+		<Description>GitHubCrawler allows you to crawl GitHub repositories, enumerating code and other files, and download assets.</Description>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <Content Include="logo.ico" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Inputty" Version="1.0.12" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="GitHubCrawler.xml">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
+
+</Project>
