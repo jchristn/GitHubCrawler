@@ -85,6 +85,16 @@
             </summary>
             <param name="token">Optional GitHub personal access token for authenticated requests.</param>
         </member>
+        <member name="M:GitHubCrawler.GitHubRepoCrawler.#ctor(System.Net.Http.HttpMessageHandler,System.String)">
+            <summary>
+            Initializes a new instance of the GitHubRepoCrawler class using a caller-supplied message handler.
+            This overload is useful for injecting a custom handler (for example, a proxy configuration) or a
+            fake handler for testing.
+            </summary>
+            <param name="handler">The HTTP message handler used to send requests. The handler is owned by this instance and is disposed when the crawler is disposed.</param>
+            <param name="token">Optional GitHub personal access token for authenticated requests.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when the handler is null.</exception>
+        </member>
         <member name="M:GitHubCrawler.GitHubRepoCrawler.GetRepositoryContentsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Asynchronously retrieves all file URLs from a GitHub repository.

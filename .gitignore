@@ -339,3 +339,5 @@ paket-files/
 __pycache__/
 *.pyc
  
+# Touchstone test result output
+test-results/

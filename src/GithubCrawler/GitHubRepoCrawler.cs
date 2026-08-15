@@ -21,8 +21,23 @@
         /// </summary>
         /// <param name="token">Optional GitHub personal access token for authenticated requests.</param>
         public GitHubRepoCrawler(string token = null)
+            : this(new HttpClientHandler(), token)
         {
-            _httpClient = new HttpClient();
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the GitHubRepoCrawler class using a caller-supplied message handler.
+        /// This overload is useful for injecting a custom handler (for example, a proxy configuration) or a
+        /// fake handler for testing.
+        /// </summary>
+        /// <param name="handler">The HTTP message handler used to send requests. The handler is owned by this instance and is disposed when the crawler is disposed.</param>
+        /// <param name="token">Optional GitHub personal access token for authenticated requests.</param>
+        /// <exception cref="ArgumentNullException">Thrown when the handler is null.</exception>
+        public GitHubRepoCrawler(HttpMessageHandler handler, string token = null)
+        {
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+
+            _httpClient = new HttpClient(handler);
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "GitHubRepoCrawler/1.0");
 
             if (!string.IsNullOrEmpty(token))
@@ -46,6 +61,11 @@
             [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
+
+            if (string.IsNullOrWhiteSpace(gitUrl))
+            {
+                throw new ArgumentException("Invalid GitHub repository URL", nameof(gitUrl));
+            }
 
             var (owner, repo) = ParseGitUrl(gitUrl);
             if (string.IsNullOrEmpty(owner) || string.IsNullOrEmpty(repo))
