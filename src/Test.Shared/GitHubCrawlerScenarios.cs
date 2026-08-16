@@ -308,6 +308,12 @@ namespace Test.Shared
         }
 
         [Scenario("url-parsing")]
+        public static async Task UrlParse_TrailingSlash_ParsesOwnerRepo()
+        {
+            await AssertFirstApiUrl("https://github.com/owner/repo/", RootContentsApiUrl);
+        }
+
+        [Scenario("url-parsing")]
         public static async Task UrlParse_NullUrl_Throws()
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]")))
@@ -460,6 +466,73 @@ namespace Test.Shared
                 List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
                 TestAssert.Single(results);
                 TestAssert.Equal("https://raw/a/b/c.txt", results[0]);
+            }
+        }
+
+        [Scenario("crawler-contents")]
+        public static async Task Contents_SubdirectoryYieldedBeforeLaterSiblings_DepthFirstOrder()
+        {
+            // Root order is [dir "a", file "z.txt"]. The crawler is depth-first pre-order, so the
+            // contents of "a" must be yielded before the later sibling "z.txt".
+            using (GitHubRepoCrawler crawler = CreateCrawler(request =>
+            {
+                string url = request.RequestUri.AbsoluteUri;
+                if (url == RootContentsApiUrl)
+                {
+                    return FakeHttpMessageHandler.Json(HttpStatusCode.OK, GitHubJson.Array(
+                        GitHubJson.Directory("a", "a"),
+                        GitHubJson.File("z.txt", "z.txt", "https://raw/z.txt")));
+                }
+
+                if (url == "https://api.github.com/repos/owner/repo/contents/a")
+                {
+                    return FakeHttpMessageHandler.Json(HttpStatusCode.OK, GitHubJson.Array(
+                        GitHubJson.File("a1.txt", "a/a1.txt", "https://raw/a/a1.txt")));
+                }
+
+                return FakeHttpMessageHandler.Json(HttpStatusCode.NotFound, "not found");
+            }))
+            {
+                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                TestAssert.Count(2, results);
+                TestAssert.Equal("https://raw/a/a1.txt", results[0]);
+                TestAssert.Equal("https://raw/z.txt", results[1]);
+            }
+        }
+
+        [Scenario("crawler-contents")]
+        public static async Task Contents_CancelledMidStream_StopsEnumeration()
+        {
+            // Cancel after the first yielded item. The per-item cancellation check inside the crawl loop
+            // must then abort enumeration rather than continuing to recurse into the "sub" directory.
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            using (GitHubRepoCrawler crawler = CreateCrawler(request =>
+            {
+                string url = request.RequestUri.AbsoluteUri;
+                if (url == RootContentsApiUrl)
+                {
+                    return FakeHttpMessageHandler.Json(HttpStatusCode.OK, GitHubJson.Array(
+                        GitHubJson.File("a.txt", "a.txt", "https://raw/a.txt"),
+                        GitHubJson.Directory("sub", "sub")));
+                }
+
+                return FakeHttpMessageHandler.Json(HttpStatusCode.OK, GitHubJson.Array(
+                    GitHubJson.File("b.txt", "sub/b.txt", "https://raw/sub/b.txt")));
+            }))
+            {
+                List<string> collected = new List<string>();
+
+                await TestAssert.ThrowsAsync<OperationCanceledException>(async () =>
+                {
+                    await foreach (string url in crawler.GetRepositoryContentsAsync(ValidRepoUrl, cts.Token))
+                    {
+                        collected.Add(url);
+                        cts.Cancel();
+                    }
+                });
+
+                TestAssert.Single(collected);
+                TestAssert.Equal("https://raw/a.txt", collected[0]);
             }
         }
 
@@ -667,6 +740,86 @@ namespace Test.Shared
             {
                 cts.Cancel();
                 await TestAssert.ThrowsAsync<OperationCanceledException>(() => crawler.GetFileContentsAsync("https://raw/a.txt", cts.Token));
+            }
+        }
+
+        #endregion
+
+        #region Request-Headers
+
+        private const string ExpectedUserAgent = "GitHubRepoCrawler/1.0";
+        private const string SampleToken = "ghp_exampletoken";
+
+        [Scenario("request-headers")]
+        public static async Task Headers_UserAgent_SentOnContentsRequest()
+        {
+            FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]"));
+            using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler))
+            {
+                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                TestAssert.Single(handler.Requests);
+                TestAssert.Equal(ExpectedUserAgent, handler.Requests[0].Header("User-Agent"));
+            }
+        }
+
+        [Scenario("request-headers")]
+        public static async Task Headers_NoToken_NoAuthorizationHeaderOnContents()
+        {
+            FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]"));
+            using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler))
+            {
+                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                TestAssert.Single(handler.Requests);
+                TestAssert.False(handler.Requests[0].HasHeader("Authorization"));
+            }
+        }
+
+        [Scenario("request-headers")]
+        public static async Task Headers_WithToken_AuthorizationHeaderSentOnContents()
+        {
+            FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]"));
+            using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler, SampleToken))
+            {
+                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                TestAssert.Single(handler.Requests);
+                TestAssert.True(handler.Requests[0].HasHeader("Authorization"));
+                TestAssert.Equal("token " + SampleToken, handler.Requests[0].Header("Authorization"));
+            }
+        }
+
+        [Scenario("request-headers")]
+        public static async Task Headers_UserAgent_SentOnFileDownload()
+        {
+            FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain"));
+            using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler))
+            {
+                await crawler.GetFileContentsAsync("https://raw/a.txt");
+                TestAssert.Single(handler.Requests);
+                TestAssert.Equal(ExpectedUserAgent, handler.Requests[0].Header("User-Agent"));
+            }
+        }
+
+        [Scenario("request-headers")]
+        public static async Task Headers_WithToken_AuthorizationHeaderSentOnFileDownload()
+        {
+            FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain"));
+            using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler, SampleToken))
+            {
+                await crawler.GetFileContentsAsync("https://raw/a.txt");
+                TestAssert.Single(handler.Requests);
+                TestAssert.Equal("token " + SampleToken, handler.Requests[0].Header("Authorization"));
+            }
+        }
+
+        [Scenario("request-headers")]
+        public static async Task Headers_NoToken_NoAuthorizationHeaderOnFileDownload()
+        {
+            FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain"));
+            using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler))
+            {
+                await crawler.GetFileContentsAsync("https://raw/a.txt");
+                TestAssert.Single(handler.Requests);
+                TestAssert.False(handler.Requests[0].HasHeader("Authorization"));
             }
         }
 
