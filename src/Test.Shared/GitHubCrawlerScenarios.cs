@@ -20,7 +20,7 @@ namespace Test.Shared
     /// All HTTP behavior is exercised through an injected <see cref="FakeHttpMessageHandler"/> so the suite is
     /// deterministic and requires no network access or GitHub rate-limit budget.
     /// </summary>
-    public static class GitHubCrawlerScenarios
+    public static partial class GitHubCrawlerScenarios
     {
         private const string ValidRepoUrl = "https://github.com/owner/repo";
         private const string RootContentsApiUrl = "https://api.github.com/repos/owner/repo/contents/";

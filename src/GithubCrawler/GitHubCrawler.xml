@@ -39,6 +39,274 @@
             GitHub content.
             </summary>
         </member>
+        <member name="T:GitHubCrawler.GitHubCrawlerTelemetry">
+            <summary>
+            Public, stable names for every telemetry point GitHubCrawler emits.
+            The library emits only through the base class library (<see cref="T:System.Diagnostics.Metrics.Meter"/> and
+            <see cref="T:System.Diagnostics.ActivitySource"/>) and takes no exporter or SDK dependency. Emission is effectively
+            free until a host subscribes to <see cref="F:GitHubCrawler.GitHubCrawlerTelemetry.MeterName"/> and <see cref="F:GitHubCrawler.GitHubCrawlerTelemetry.ActivitySourceName"/>.
+            These names are a public contract consumed by dashboards and alerts. Do not rename them casually.
+            See TELEMETRY.md in the repository root for the full catalog.
+            This class is thread-safe (it contains only constants).
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MeterName">
+            <summary>
+            Name of the <see cref="T:System.Diagnostics.Metrics.Meter"/> that carries all GitHubCrawler metrics.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.ActivitySourceName">
+            <summary>
+            Name of the <see cref="T:System.Diagnostics.ActivitySource"/> that carries all GitHubCrawler spans.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricOperationDuration">
+            <summary>
+            Histogram (s): duration of each public operation. Labels: githubcrawler.operation, outcome, error.type.
+            For a repository crawl this spans the full enumeration, including time the caller spends between items.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricOperations">
+            <summary>
+            Counter ({operation}): completed public operations. Labels: githubcrawler.operation, outcome, error.type.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricOperationsActive">
+            <summary>
+            UpDownCounter ({operation}): public operations currently in flight. Labels: githubcrawler.operation.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricOperationLastSuccess">
+            <summary>
+            Observable gauge (s): Unix time of the most recent successful operation. Labels: githubcrawler.operation.
+            Only reported once an operation of that type has succeeded in this process.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricGitHubRequestDuration">
+            <summary>
+            Histogram (s): duration of each outbound GitHub HTTP call, including reading the response body.
+            Labels: github.operation, outcome, http.response.status_code, error.type, githubcrawler.auth.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricGitHubRequests">
+            <summary>
+            Counter ({request}): outbound GitHub HTTP calls.
+            Labels: github.operation, outcome, http.response.status_code, error.type, githubcrawler.auth.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricGitHubRateLimitExceeded">
+            <summary>
+            Counter ({request}): GitHub responses that indicate a rate limit (HTTP 403 or 429).
+            Labels: github.operation, githubcrawler.auth.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricGitHubRateLimitRemaining">
+            <summary>
+            Observable gauge ({request}): the most recent X-RateLimit-Remaining value returned by GitHub, per auth mode.
+            Labels: githubcrawler.auth. Only reported once a response carrying the header has been observed.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricCrawlItems">
+            <summary>
+            Counter ({item}): repository entries discovered while crawling. Labels: githubcrawler.item.type.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricCrawlFiles">
+            <summary>
+            Histogram ({file}): number of file URLs yielded per repository crawl. Labels: outcome.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricCrawlDirectories">
+            <summary>
+            Histogram ({directory}): number of directories listed per repository crawl. Labels: outcome.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricFileDownloadSize">
+            <summary>
+            Histogram (By): size of downloaded file bodies. Labels: outcome.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricCrawlersActive">
+            <summary>
+            UpDownCounter ({crawler}): crawler instances constructed and not yet disposed. Labels: githubcrawler.auth.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.MetricBuildInfo">
+            <summary>
+            Observable gauge ({info}): constant 1 carrying the library version. Labels: githubcrawler.version.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.SpanCrawlRepository">
+            <summary>
+            Internal root span for <see cref="M:GitHubCrawler.GitHubRepoCrawler.GetRepositoryContentsAsync(System.String,System.Threading.CancellationToken)"/>.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.SpanGetFileContents">
+            <summary>
+            Internal root span for <see cref="M:GitHubCrawler.GitHubRepoCrawler.GetFileContentsAsync(System.String,System.Threading.CancellationToken)"/>.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.SpanGitHubContentsList">
+            <summary>
+            Client span for one GitHub Contents API directory listing.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.SpanGitHubFileDownload">
+            <summary>
+            Client span for one file download.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeOperation">
+            <summary>
+            Metric label and span attribute: the public operation (see Operation* constants).
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeOutcome">
+            <summary>
+            Metric label and span attribute: the result of an operation or request (see Outcome* constants).
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeErrorType">
+            <summary>
+            Metric label and span attribute (OpenTelemetry semantic convention): the error class.
+            An HTTP status code string (for example "404") for HTTP failures, otherwise the exception type full name.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeGitHubOperation">
+            <summary>
+            Metric label and span attribute: the outbound GitHub operation (see GitHubOperation* constants).
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeAuth">
+            <summary>
+            Metric label: whether the crawler sends a token (see Auth* constants).
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeItemType">
+            <summary>
+            Metric label: the GitHub content entry type (file, dir, symlink, submodule, or other).
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeVersion">
+            <summary>
+            Metric label: library version on the build info gauge.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeGitHubOwner">
+            <summary>
+            Span attribute: repository owner. Span only, never a metric label.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeGitHubRepo">
+            <summary>
+            Span attribute: repository name. Span only, never a metric label.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeGitHubPath">
+            <summary>
+            Span attribute: repository-relative directory path being listed. Span only, never a metric label.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeDepth">
+            <summary>
+            Span attribute: directory depth of a listing (0 is the repository root).
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeItems">
+            <summary>
+            Span attribute: number of entries returned by a directory listing.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeFiles">
+            <summary>
+            Span attribute: number of file URLs yielded by a crawl.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeDirectories">
+            <summary>
+            Span attribute: number of directories listed by a crawl.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeRateLimitRemaining">
+            <summary>
+            Span attribute: the last X-RateLimit-Remaining value observed on the response.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeHttpRequestMethod">
+            <summary>
+            Span attribute (OpenTelemetry semantic convention): HTTP request method.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeHttpResponseStatusCode">
+            <summary>
+            Metric label and span attribute (OpenTelemetry semantic convention): HTTP response status code.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeHttpResponseBodySize">
+            <summary>
+            Span attribute (OpenTelemetry semantic convention): response body size in bytes.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeServerAddress">
+            <summary>
+            Span attribute (OpenTelemetry semantic convention): server host name. Span only, never a metric label.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AttributeUrlFull">
+            <summary>
+            Span attribute (OpenTelemetry semantic convention): request URL with any query string and user info removed.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.OperationCrawlRepository">
+            <summary>
+            Operation value for <see cref="M:GitHubCrawler.GitHubRepoCrawler.GetRepositoryContentsAsync(System.String,System.Threading.CancellationToken)"/>.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.OperationGetFileContents">
+            <summary>
+            Operation value for <see cref="M:GitHubCrawler.GitHubRepoCrawler.GetFileContentsAsync(System.String,System.Threading.CancellationToken)"/>.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.GitHubOperationContentsList">
+            <summary>
+            GitHub operation value for a Contents API directory listing.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.GitHubOperationFileDownload">
+            <summary>
+            GitHub operation value for a file download.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.OutcomeSuccess">
+            <summary>
+            Outcome: the operation or request completed successfully.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.OutcomeFailure">
+            <summary>
+            Outcome: the operation or request failed. See error.type for the cause.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.OutcomeCancelled">
+            <summary>
+            Outcome: the caller cancelled via its CancellationToken. Not treated as an error.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.OutcomeAbandoned">
+            <summary>
+            Outcome: the caller stopped enumerating a crawl before it finished (for example, took the first N files).
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AuthToken">
+            <summary>
+            Auth value: the crawler sends a personal access token.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubCrawlerTelemetry.AuthAnonymous">
+            <summary>
+            Auth value: the crawler sends no token.
+            </summary>
+        </member>
         <member name="T:GitHubCrawler.GitHubFileResponse">
             <summary>
             GitHub file response.
@@ -98,6 +366,8 @@
         <member name="M:GitHubCrawler.GitHubRepoCrawler.GetRepositoryContentsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Asynchronously retrieves all file URLs from a GitHub repository.
+            Emits the "githubcrawler crawl_repository" span with one "github contents.list" child per directory, and the
+            githubcrawler.operation.* and githubcrawler.github.* metrics. See TELEMETRY.md.
             </summary>
             <param name="gitUrl">The GitHub repository URL.</param>
             <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
@@ -109,6 +379,10 @@
         <member name="M:GitHubCrawler.GitHubRepoCrawler.GetFileContentsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Asynchronously downloads file contents from a GitHub URL.
+            Emits the "githubcrawler get_file_contents" span with a "github file.download" child, and the
+            githubcrawler.operation.*, githubcrawler.github.*, and githubcrawler.file.download.size metrics.
+            A response with a status code of 400 or above is returned to the caller as before, and is recorded as a failure
+            with error.type set to the status code.
             </summary>
             <param name="url">The file download URL.</param>
             <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>

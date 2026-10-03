@@ -16,6 +16,7 @@ GitHubCrawler is a lightweight C# library for recursively discovering and downlo
 * 📁 **Recursive Discovery** - Automatically traverses entire repository structure
 * 🔍 **Metadata Included** - Returns full HTTP response metadata alongside file content
 * 🚀 **Minimal Dependencies** - Lightweight with minimal external dependencies
+* 📈 **Built-in Telemetry** (v1.1.0) - OpenTelemetry-compatible metrics and traces through a `Meter` and `ActivitySource` named `GitHubCrawler`, free until a host subscribes
 
 ## Installation
 
@@ -216,6 +217,24 @@ await foreach (var url in crawler.GetRepositoryContentsAsync(gitUrl))
 }
 Console.WriteLine($"\nTotal files: {fileCount}");
 ```
+
+## Observability
+
+GitHubCrawler emits metrics and traces through the standard .NET `Meter` and `ActivitySource` APIs, both named `GitHubCrawler`. It has no exporter dependency and costs effectively nothing until your host subscribes. Once subscribed you get:
+
+- A `githubcrawler crawl_repository` span per crawl with one `github contents.list` child per directory, and a `githubcrawler get_file_contents` span with a `github file.download` child per download
+- Operation and GitHub-call counters and latency histograms by outcome and `error.type` (for example `404`, `403`, `System.Text.Json.JsonException`)
+- GitHub rate-limit headroom (`X-RateLimit-Remaining`) and a rate-limit-exceeded counter
+- Crawl size, items discovered by type, download sizes, in-flight operations, live crawler instances, last-success timestamps, and build info
+
+Subscribe with [Radiant](https://www.nuget.org/packages/Radiant/) or the OpenTelemetry SDK:
+
+```csharp
+settings.Sources.AddMeter(GitHubCrawlerTelemetry.MeterName);           // "GitHubCrawler"
+settings.Sources.AddActivitySource(GitHubCrawlerTelemetry.ActivitySourceName);
+```
+
+See [TELEMETRY.md](TELEMETRY.md) for the full metrics and spans catalog, label values, recommended PromQL alerts, and suggested Grafana panels.
 
 ## Best Practices
 

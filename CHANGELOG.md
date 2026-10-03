@@ -2,7 +2,17 @@
 
 ## Current Version
 
-v1.x
+v1.1.0
+
+- Built-in telemetry: metrics and traces through a BCL `Meter` and `ActivitySource` named `GitHubCrawler` (no exporter or SDK dependency, near-zero cost when unobserved)
+- Spans: `githubcrawler crawl_repository`, `github contents.list` (one per directory), `githubcrawler get_file_contents`, `github file.download`, with explicit status, exception events, and caller context propagation
+- Metrics: operation and GitHub request counters and duration histograms by outcome and `error.type`, rate-limit remaining gauge and exceeded counter, crawl items/files/directories, download size, in-flight operations, active crawler instances, last-success timestamps, and build info
+- New public `GitHubCrawlerTelemetry` class holding every meter, source, instrument, span, and attribute name
+- Directory listing responses are now disposed after being read
+- Added dependency: `System.Diagnostics.DiagnosticSource` 10.0.12 (histogram bucket advice)
+- See TELEMETRY.md for the full catalog
+
+v1.0.x
 
 - Authentication Support - Use personal access tokens for private repos and higher rate limits
 - Async Enumerable - Modern async streaming API for efficient memory usage
