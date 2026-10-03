@@ -279,6 +279,18 @@ See [TELEMETRY.md](TELEMETRY.md) for the full metrics and spans catalog, label v
 
 When rate limited, the API returns status code 403 or 429, and the crawler throws `GitHubRateLimitException`.
 
+## Testing
+
+The same Touchstone test suites (in `src/Test.Shared`) run under three runners:
+
+```bash
+dotnet test src/Test.XUnit
+dotnet test src/Test.NUnit
+dotnet run --project src/Test.Automated -- --results results.json
+```
+
+Test dependencies: Touchstone 0.2.0, xUnit 2.9.3, NUnit 5.0.0, NUnit3TestAdapter 6.3.0, Microsoft.NET.Test.Sdk 18.10.1.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

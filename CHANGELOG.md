@@ -2,6 +2,12 @@
 
 ## Current Version
 
+v1.2.1
+
+- No library API or behavior changes; library dependencies unchanged (`System.Diagnostics.DiagnosticSource` 10.0.12 is still current)
+- Test dependencies updated: Touchstone.Core, Touchstone.Cli, Touchstone.XunitAdapter, Touchstone.NunitAdapter (0.1.12 -> 0.2.0), NUnit (4.6.1 -> 5.0.0), NUnit3TestAdapter (6.2.0 -> 6.3.0), Microsoft.NET.Test.Sdk (18.9.0 -> 18.10.1)
+- All 94 tests pass under xUnit, NUnit, and the Touchstone CLI runner
+
 v1.2.0
 
 - Specific exception types: `GitHubCrawlerException` (with `StatusCode`), `GitHubRepositoryNotFoundException` (404, with `Owner` and `Repository`), and `GitHubRateLimitException` (403 or 429, with `RateLimitRemaining` and `RateLimitReset`). All derive from `Exception`, and messages are unchanged, so existing `catch (Exception)` handlers keep working
