@@ -37,24 +37,24 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(request =>
             {
-                if (request.RequestUri.Host == "api.github.com")
+                if (request.RequestUri?.Host == "api.github.com")
                     return FakeHttpMessageHandler.Json(HttpStatusCode.OK, GitHubJson.Array(GitHubJson.File("a.txt", "a.txt", "https://raw/a.txt")));
                 return FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1, 2, 3 }, "application/octet-stream");
             }))
             {
-                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Single(results);
 
-                GitHubFileResponse file = await crawler.GetFileContentsAsync("https://raw/a.txt");
-                TestAssert.Equal(3, file.Content.Length);
+                GitHubFileResponse file = await crawler.GetFileContentsAsync("https://raw/a.txt").ConfigureAwait(false);
+                TestAssert.Equal(3, file.Content?.Length ?? 0);
 
                 await TestAssert.ThrowsAsync<Exception>(async () =>
                 {
                     using (GitHubRepoCrawler failing = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.NotFound, "{}")))
                     {
-                        await DrainAsync(failing.GetRepositoryContentsAsync(ValidRepoUrl));
+                        await DrainAsync(failing.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                     }
-                });
+                }).ConfigureAwait(false);
             }
         }
 
@@ -64,7 +64,7 @@ namespace Test.Shared
             using (TelemetryCapture capture = new TelemetryCapture())
             using (GitHubRepoCrawler crawler = CreateCrawler(NestedRepoResponder))
             {
-                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Count(2, results);
 
                 Activity root = capture.SingleActivity(GitHubCrawlerTelemetry.SpanCrawlRepository);
@@ -99,7 +99,7 @@ namespace Test.Shared
             using (TelemetryCapture capture = new TelemetryCapture())
             using (GitHubRepoCrawler crawler = CreateCrawler(NestedRepoResponder))
             {
-                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
 
                 string[] crawlSuccess = { GitHubCrawlerTelemetry.AttributeOperation, GitHubCrawlerTelemetry.OperationCrawlRepository, GitHubCrawlerTelemetry.AttributeOutcome, GitHubCrawlerTelemetry.OutcomeSuccess };
                 TestAssert.Equal(1d, capture.Sum(GitHubCrawlerTelemetry.MetricOperations, crawlSuccess));
@@ -138,12 +138,12 @@ namespace Test.Shared
                 ActivityTraceId traceId;
                 ActivitySpanId parentSpanId;
 
-                using (Activity parent = TelemetryCapture.TestSource.StartActivity("test parent"))
+                using (Activity? parent = TelemetryCapture.TestSource.StartActivity("test parent"))
                 {
                     TestAssert.NotNull(parent);
                     traceId = parent.TraceId;
                     parentSpanId = parent.SpanId;
-                    await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                    await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 }
 
                 Activity root = capture.SingleActivity(GitHubCrawlerTelemetry.SpanCrawlRepository);
@@ -159,7 +159,7 @@ namespace Test.Shared
             using (TelemetryCapture capture = new TelemetryCapture())
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.NotFound, "{}")))
             {
-                await TestAssert.ThrowsAsync<Exception>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)));
+                await TestAssert.ThrowsAsync<Exception>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl))).ConfigureAwait(false);
 
                 AssertCrawlFailure(capture, "404");
 
@@ -189,7 +189,7 @@ namespace Test.Shared
                 return response;
             }), "secret-token"))
             {
-                await TestAssert.ThrowsAsync<Exception>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)));
+                await TestAssert.ThrowsAsync<Exception>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl))).ConfigureAwait(false);
 
                 AssertCrawlFailure(capture, "403");
                 TestAssert.Equal(1d, capture.Sum(
@@ -215,7 +215,7 @@ namespace Test.Shared
             using (TelemetryCapture capture = new TelemetryCapture())
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "{ not json")))
             {
-                await TestAssert.ThrowsAsync<System.Text.Json.JsonException>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)));
+                await TestAssert.ThrowsAsync<System.Text.Json.JsonException>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl))).ConfigureAwait(false);
 
                 AssertCrawlFailure(capture, "System.Text.Json.JsonException");
                 TestAssert.Equal(1d, capture.Sum(
@@ -232,7 +232,7 @@ namespace Test.Shared
             using (TelemetryCapture capture = new TelemetryCapture())
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]")))
             {
-                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync("https://gitlab.com/owner/repo")));
+                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync("https://gitlab.com/owner/repo"))).ConfigureAwait(false);
 
                 AssertCrawlFailure(capture, "System.ArgumentException");
                 TestAssert.Empty(capture.Measurements(GitHubCrawlerTelemetry.MetricGitHubRequests));
@@ -253,7 +253,7 @@ namespace Test.Shared
                     {
                         cts.Cancel();
                     }
-                });
+                }).ConfigureAwait(false);
 
                 List<CapturedMeasurement> ops = capture.Measurements(
                     GitHubCrawlerTelemetry.MetricOperations,
@@ -297,7 +297,7 @@ namespace Test.Shared
             using (TelemetryCapture capture = new TelemetryCapture())
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, payload, "text/plain")))
             {
-                await crawler.GetFileContentsAsync("https://raw.githubusercontent.com/owner/repo/main/a.txt?token=SECRETQUERY");
+                await crawler.GetFileContentsAsync("https://raw.githubusercontent.com/owner/repo/main/a.txt?token=SECRETQUERY").ConfigureAwait(false);
 
                 Activity root = capture.SingleActivity(GitHubCrawlerTelemetry.SpanGetFileContents);
                 Activity download = capture.SingleActivity(GitHubCrawlerTelemetry.SpanGitHubFileDownload);
@@ -333,7 +333,7 @@ namespace Test.Shared
             using (TelemetryCapture capture = new TelemetryCapture())
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.NotFound, Encoding.UTF8.GetBytes("404"), "text/plain")))
             {
-                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/missing.txt");
+                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/missing.txt").ConfigureAwait(false);
                 TestAssert.Equal(HttpStatusCode.NotFound, response.StatusCode);
 
                 TestAssert.Equal(1d, capture.Sum(
@@ -356,7 +356,7 @@ namespace Test.Shared
             using (TelemetryCapture capture = new TelemetryCapture())
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => throw new HttpRequestException("boom")))
             {
-                await TestAssert.ThrowsAsync<HttpRequestException>(() => crawler.GetFileContentsAsync("https://raw/a.txt"));
+                await TestAssert.ThrowsAsync<HttpRequestException>(() => crawler.GetFileContentsAsync("https://raw/a.txt")).ConfigureAwait(false);
 
                 TestAssert.Equal(1d, capture.Sum(
                     GitHubCrawlerTelemetry.MetricOperations,
@@ -376,7 +376,7 @@ namespace Test.Shared
             using (TelemetryCapture capture = new TelemetryCapture())
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => throw new TaskCanceledException("timed out", new TimeoutException())))
             {
-                await TestAssert.ThrowsAsync<TaskCanceledException>(() => crawler.GetFileContentsAsync("https://raw/a.txt"));
+                await TestAssert.ThrowsAsync<TaskCanceledException>(() => crawler.GetFileContentsAsync("https://raw/a.txt")).ConfigureAwait(false);
 
                 TestAssert.Equal(1d, capture.Sum(
                     GitHubCrawlerTelemetry.MetricOperations,
@@ -393,7 +393,7 @@ namespace Test.Shared
                 GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]"));
                 crawler.Dispose();
 
-                await TestAssert.ThrowsAsync<ObjectDisposedException>(() => crawler.GetFileContentsAsync("https://raw/a.txt"));
+                await TestAssert.ThrowsAsync<ObjectDisposedException>(() => crawler.GetFileContentsAsync("https://raw/a.txt")).ConfigureAwait(false);
 
                 TestAssert.Equal(1d, capture.Sum(
                     GitHubCrawlerTelemetry.MetricOperations,
@@ -430,7 +430,7 @@ namespace Test.Shared
                 List<CapturedMeasurement> info = capture.Measurements(GitHubCrawlerTelemetry.MetricBuildInfo);
                 TestAssert.True(info.Any(), "Expected the build info gauge to report.");
                 TestAssert.Equal(1d, info.Last().Value);
-                string version = info.Last().Tag(GitHubCrawlerTelemetry.AttributeVersion);
+                string? version = info.Last().Tag(GitHubCrawlerTelemetry.AttributeVersion);
                 TestAssert.False(string.IsNullOrEmpty(version) || version == "unknown", "Expected a real version label.");
                 TestAssert.False(version.Contains("+"), "Version label must not carry the commit hash suffix.");
             }
@@ -442,7 +442,7 @@ namespace Test.Shared
 
         private static HttpResponseMessage NestedRepoResponder(HttpRequestMessage request)
         {
-            string url = request.RequestUri.AbsoluteUri;
+            string url = request.RequestUri?.AbsoluteUri ?? string.Empty;
 
             if (url == RootContentsApiUrl)
             {
@@ -482,7 +482,7 @@ namespace Test.Shared
             {
                 foreach (Activity activity in capture.Activities(name))
                 {
-                    foreach (KeyValuePair<string, object> tag in activity.TagObjects)
+                    foreach (KeyValuePair<string, object?> tag in activity.TagObjects)
                     {
                         string value = Convert.ToString(tag.Value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
                         TestAssert.False(value.Contains(secret), "Span " + name + " tag " + tag.Key + " leaked a secret.");

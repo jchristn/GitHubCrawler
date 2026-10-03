@@ -1,54 +1,49 @@
-﻿namespace GitHubCrawler
+namespace GitHubCrawler
 {
-    using GetSomeInput;
-    using System;
-    using System.Collections.Generic;
-    using System.Net.Http;
-    using System.Text.Json;
     using System.Text.Json.Serialization;
-    using System.Threading.Tasks;
 
     /// <summary>
-    /// GitHub content.
+    /// One entry returned by the GitHub Contents API for a directory listing.
+    /// All properties are null when the corresponding JSON field is absent or null.
+    /// Thread safety: instances are not synchronized; do not mutate an instance while other threads read it.
     /// </summary>
     public class GitHubContent
     {
         /// <summary>
-        /// Name.
+        /// Entry name (for example "README.md"). May be null.
         /// </summary>
         [JsonPropertyName("name")]
-        public string Name { get; set; }
+        public string? Name { get; set; }
 
         /// <summary>
-        /// Path.
+        /// Repository-relative path (for example "docs/README.md"). May be null.
         /// </summary>
         [JsonPropertyName("path")]
-        public string Path { get; set; }
+        public string? Path { get; set; }
 
         /// <summary>
-        /// Type.
+        /// Entry type: "file", "dir", "symlink", or "submodule". May be null.
         /// </summary>
         [JsonPropertyName("type")]
-        public string Type { get; set; }
+        public string? Type { get; set; }
 
         /// <summary>
-        /// HTML URL.
+        /// URL of the entry on github.com. May be null.
         /// </summary>
         [JsonPropertyName("html_url")]
-        public string HtmlUrl { get; set; }
+        public string? HtmlUrl { get; set; }
 
         /// <summary>
-        /// Download URL.
+        /// Raw download URL. Null for directories and submodules.
         /// </summary>
         [JsonPropertyName("download_url")]
-        public string DownloadUrl { get; set; }
+        public string? DownloadUrl { get; set; }
 
         /// <summary>
-        /// GitHub content.
+        /// Initializes a new instance with all properties null.
         /// </summary>
         public GitHubContent()
         {
-
         }
     }
 }

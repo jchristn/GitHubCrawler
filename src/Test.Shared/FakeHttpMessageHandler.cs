@@ -16,7 +16,7 @@ namespace Test.Shared
     /// </summary>
     internal sealed class FakeHttpMessageHandler : HttpMessageHandler
     {
-        private readonly Func<HttpRequestMessage, HttpResponseMessage> _responder;
+        private readonly Func<HttpRequestMessage, HttpResponseMessage> _Responder;
 
         /// <summary>
         /// The absolute URIs, in order, that were requested through this handler.
@@ -35,17 +35,17 @@ namespace Test.Shared
         /// <param name="responder">Function that produces a response for a given request.</param>
         internal FakeHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responder)
         {
-            _responder = responder ?? throw new ArgumentNullException(nameof(responder));
+            _Responder = responder ?? throw new ArgumentNullException(nameof(responder));
         }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            RequestedUris.Add(request.RequestUri?.ToString());
+            RequestedUris.Add(request.RequestUri?.ToString() ?? string.Empty);
             Requests.Add(CapturedRequest.From(request));
 
-            HttpResponseMessage response = _responder(request);
+            HttpResponseMessage response = _Responder(request);
             if (response.RequestMessage == null) response.RequestMessage = request;
             return Task.FromResult(response);
         }
@@ -53,7 +53,7 @@ namespace Test.Shared
         /// <summary>
         /// Builds a JSON response with the specified status code.
         /// </summary>
-        internal static HttpResponseMessage Json(HttpStatusCode statusCode, string json)
+        internal static HttpResponseMessage Json(HttpStatusCode statusCode, string? json)
         {
             HttpResponseMessage response = new HttpResponseMessage(statusCode)
             {
@@ -67,9 +67,9 @@ namespace Test.Shared
         /// </summary>
         internal static HttpResponseMessage Bytes(
             HttpStatusCode statusCode,
-            byte[] content,
-            string contentType,
-            IReadOnlyDictionary<string, string> responseHeaders = null)
+            byte[]? content,
+            string? contentType,
+            IReadOnlyDictionary<string, string>? responseHeaders = null)
         {
             HttpResponseMessage response = new HttpResponseMessage(statusCode);
             ByteArrayContent byteContent = new ByteArrayContent(content ?? Array.Empty<byte>());
@@ -90,61 +90,6 @@ namespace Test.Shared
             }
 
             return response;
-        }
-    }
-
-    /// <summary>
-    /// An immutable snapshot of an outgoing request: its URI, HTTP method, and merged request headers
-    /// (which include any <see cref="System.Net.Http.HttpClient.DefaultRequestHeaders"/> such as User-Agent
-    /// and Authorization that the client applies before the handler is invoked).
-    /// </summary>
-    internal sealed class CapturedRequest
-    {
-        private readonly Dictionary<string, string[]> _headers;
-
-        private CapturedRequest(string uri, HttpMethod method, Dictionary<string, string[]> headers)
-        {
-            Uri = uri;
-            Method = method;
-            _headers = headers;
-        }
-
-        /// <summary>
-        /// The absolute request URI.
-        /// </summary>
-        internal string Uri { get; }
-
-        /// <summary>
-        /// The HTTP method.
-        /// </summary>
-        internal HttpMethod Method { get; }
-
-        /// <summary>
-        /// Returns true if a header with the given name (case-insensitive) was present on the request.
-        /// </summary>
-        internal bool HasHeader(string name)
-        {
-            return _headers.ContainsKey(name);
-        }
-
-        /// <summary>
-        /// Returns the comma-joined values of the named header, or null if the header was not present.
-        /// </summary>
-        internal string Header(string name)
-        {
-            return _headers.TryGetValue(name, out string[] values) ? string.Join(", ", values) : null;
-        }
-
-        internal static CapturedRequest From(HttpRequestMessage request)
-        {
-            Dictionary<string, string[]> headers = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (KeyValuePair<string, IEnumerable<string>> header in request.Headers)
-            {
-                headers[header.Key] = header.Value.ToArray();
-            }
-
-            return new CapturedRequest(request.RequestUri?.ToString(), request.Method, headers);
         }
     }
 }

@@ -14,8 +14,6 @@ namespace GitHubCrawler
 
     internal static class CrawlerInstrumentation
     {
-        internal const string ErrorTypeDataKey = "githubcrawler.error.type";
-
         internal static readonly string Version = ResolveVersion();
 
         internal static readonly ActivitySource Source = new ActivitySource(GitHubCrawlerTelemetry.ActivitySourceName, Version);
@@ -86,7 +84,7 @@ namespace GitHubCrawler
 
             Meter.CreateObservableGauge<int>(
                 GitHubCrawlerTelemetry.MetricBuildInfo,
-                () => new Measurement<int>(1, new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeVersion, Version)),
+                () => new Measurement<int>(1, new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeVersion, Version)),
                 "{info}",
                 "Constant 1 carrying the GitHubCrawler library version.");
         }
@@ -96,7 +94,7 @@ namespace GitHubCrawler
             try
             {
                 if (_CrawlersActive.Enabled)
-                    _CrawlersActive.Add(1, new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeAuth, auth));
+                    _CrawlersActive.Add(1, new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeAuth, auth));
             }
             catch
             {
@@ -108,7 +106,7 @@ namespace GitHubCrawler
             try
             {
                 if (_CrawlersActive.Enabled)
-                    _CrawlersActive.Add(-1, new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeAuth, auth));
+                    _CrawlersActive.Add(-1, new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeAuth, auth));
             }
             catch
             {
@@ -120,19 +118,19 @@ namespace GitHubCrawler
             try
             {
                 if (_OperationsActive.Enabled)
-                    _OperationsActive.Add(1, new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeOperation, operation));
+                    _OperationsActive.Add(1, new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeOperation, operation));
             }
             catch
             {
             }
         }
 
-        internal static void OperationCompleted(string operation, string outcome, string errorType, double seconds)
+        internal static void OperationCompleted(string operation, string outcome, string? errorType, double seconds)
         {
             try
             {
                 if (_OperationsActive.Enabled)
-                    _OperationsActive.Add(-1, new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeOperation, operation));
+                    _OperationsActive.Add(-1, new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeOperation, operation));
 
                 if (_Operations.Enabled || _OperationDuration.Enabled)
                 {
@@ -164,7 +162,7 @@ namespace GitHubCrawler
             string auth,
             int statusCode,
             string outcome,
-            string errorType,
+            string? errorType,
             double seconds)
         {
             try
@@ -186,8 +184,8 @@ namespace GitHubCrawler
                 {
                     _GitHubRateLimitExceeded.Add(
                         1,
-                        new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeGitHubOperation, gitHubOperation),
-                        new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeAuth, auth));
+                        new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeGitHubOperation, gitHubOperation),
+                        new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeAuth, auth));
                 }
             }
             catch
@@ -195,14 +193,14 @@ namespace GitHubCrawler
             }
         }
 
-        internal static void ObserveRateLimit(HttpResponseMessage response, string auth, Activity activity)
+        internal static void ObserveRateLimit(HttpResponseMessage? response, string auth, Activity? activity)
         {
             try
             {
                 if (response == null) return;
-                if (!response.Headers.TryGetValues("X-RateLimit-Remaining", out IEnumerable<string> values)) return;
+                if (!response.Headers.TryGetValues("X-RateLimit-Remaining", out IEnumerable<string>? values)) return;
 
-                string raw = values.FirstOrDefault();
+                string? raw = values.FirstOrDefault();
                 if (!long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out long remaining)) return;
 
                 if (auth == GitHubCrawlerTelemetry.AuthToken)
@@ -217,7 +215,7 @@ namespace GitHubCrawler
             }
         }
 
-        internal static void ItemsDiscovered(List<GitHubContent> items)
+        internal static void ItemsDiscovered(List<GitHubContent>? items)
         {
             try
             {
@@ -225,7 +223,7 @@ namespace GitHubCrawler
 
                 foreach (GitHubContent item in items)
                 {
-                    _CrawlItems.Add(1, new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeItemType, NormalizeItemType(item?.Type)));
+                    _CrawlItems.Add(1, new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeItemType, NormalizeItemType(item?.Type)));
                 }
             }
             catch
@@ -233,11 +231,11 @@ namespace GitHubCrawler
             }
         }
 
-        internal static void CrawlCompleted(string outcome, long files, long directories)
+        internal static void CrawlCompleted(string? outcome, long files, long directories)
         {
             try
             {
-                KeyValuePair<string, object> tag = new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeOutcome, outcome);
+                KeyValuePair<string, object?> tag = new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeOutcome, outcome);
                 if (_CrawlFiles.Enabled) _CrawlFiles.Record(files, tag);
                 if (_CrawlDirectories.Enabled) _CrawlDirectories.Record(directories, tag);
             }
@@ -251,14 +249,14 @@ namespace GitHubCrawler
             try
             {
                 if (_FileDownloadSize.Enabled)
-                    _FileDownloadSize.Record(bytes, new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeOutcome, outcome));
+                    _FileDownloadSize.Record(bytes, new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeOutcome, outcome));
             }
             catch
             {
             }
         }
 
-        internal static Activity StartActivity(string name, ActivityKind kind, ActivityContext parent)
+        internal static Activity? StartActivity(string name, ActivityKind kind, ActivityContext parent)
         {
             try
             {
@@ -271,7 +269,7 @@ namespace GitHubCrawler
             }
         }
 
-        internal static void MarkSuccess(Activity activity)
+        internal static void MarkSuccess(Activity? activity)
         {
             if (activity == null) return;
 
@@ -285,7 +283,7 @@ namespace GitHubCrawler
             }
         }
 
-        internal static void MarkFailure(Activity activity, string outcome, string errorType, string description, Exception exception)
+        internal static void MarkFailure(Activity? activity, string outcome, string? errorType, string? description, Exception? exception)
         {
             if (activity == null) return;
 
@@ -315,17 +313,14 @@ namespace GitHubCrawler
             return GitHubCrawlerTelemetry.OutcomeFailure;
         }
 
-        internal static string ClassifyErrorType(Exception exception)
+        internal static string? ClassifyErrorType(Exception? exception)
         {
             if (exception == null) return null;
 
             try
             {
-                if (exception.Data != null && exception.Data.Contains(ErrorTypeDataKey))
-                {
-                    string fromData = exception.Data[ErrorTypeDataKey] as string;
-                    if (!string.IsNullOrEmpty(fromData)) return fromData;
-                }
+                if (exception is GitHubCrawlerException crawlerException && crawlerException.StatusCode.HasValue)
+                    return StatusErrorType(crawlerException.StatusCode.Value);
 
                 if (exception is TaskCanceledException && exception.InnerException is TimeoutException)
                     return typeof(TimeoutException).FullName;
@@ -345,7 +340,7 @@ namespace GitHubCrawler
             return ((int)statusCode).ToString(CultureInfo.InvariantCulture);
         }
 
-        internal static string SanitizeUrl(Uri uri)
+        internal static string? SanitizeUrl(Uri? uri)
         {
             if (uri == null || !uri.IsAbsoluteUri) return null;
 
@@ -373,7 +368,7 @@ namespace GitHubCrawler
             {
                 measurements.Add(new Measurement<double>(
                     ToUnixSeconds(crawl),
-                    new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeOperation, GitHubCrawlerTelemetry.OperationCrawlRepository)));
+                    new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeOperation, GitHubCrawlerTelemetry.OperationCrawlRepository)));
             }
 
             long file = Interlocked.Read(ref _LastFileSuccessTicks);
@@ -381,7 +376,7 @@ namespace GitHubCrawler
             {
                 measurements.Add(new Measurement<double>(
                     ToUnixSeconds(file),
-                    new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeOperation, GitHubCrawlerTelemetry.OperationGetFileContents)));
+                    new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeOperation, GitHubCrawlerTelemetry.OperationGetFileContents)));
             }
 
             return measurements;
@@ -395,14 +390,14 @@ namespace GitHubCrawler
             if (token >= 0)
             {
                 measurements.Add(new Measurement<long>(
-                    token, new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeAuth, GitHubCrawlerTelemetry.AuthToken)));
+                    token, new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeAuth, GitHubCrawlerTelemetry.AuthToken)));
             }
 
             long anonymous = Interlocked.Read(ref _RateLimitRemainingAnonymous);
             if (anonymous >= 0)
             {
                 measurements.Add(new Measurement<long>(
-                    anonymous, new KeyValuePair<string, object>(GitHubCrawlerTelemetry.AttributeAuth, GitHubCrawlerTelemetry.AuthAnonymous)));
+                    anonymous, new KeyValuePair<string, object?>(GitHubCrawlerTelemetry.AttributeAuth, GitHubCrawlerTelemetry.AuthAnonymous)));
             }
 
             return measurements;
@@ -413,7 +408,7 @@ namespace GitHubCrawler
             return (ticks - DateTime.UnixEpoch.Ticks) / (double)TimeSpan.TicksPerSecond;
         }
 
-        private static string NormalizeItemType(string type)
+        private static string NormalizeItemType(string? type)
         {
             switch (type)
             {
@@ -454,7 +449,7 @@ namespace GitHubCrawler
             try
             {
                 Assembly assembly = typeof(CrawlerInstrumentation).Assembly;
-                AssemblyInformationalVersionAttribute info = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
+                AssemblyInformationalVersionAttribute? info = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
                 string version = info?.InformationalVersion ?? assembly.GetName().Version?.ToString() ?? "unknown";
                 int plus = version.IndexOf('+');
                 return plus > 0 ? version.Substring(0, plus) : version;

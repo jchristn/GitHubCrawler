@@ -34,7 +34,7 @@ namespace Test.Shared
                 .ToList();
 
             List<TestSuiteDescriptor> suites = methods
-                .GroupBy(m => m.GetCustomAttribute<ScenarioAttribute>().Suite, StringComparer.Ordinal)
+                .GroupBy(m => m.GetCustomAttribute<ScenarioAttribute>()?.Suite ?? string.Empty, StringComparer.Ordinal)
                 .OrderBy(g => g.Key, StringComparer.Ordinal)
                 .Select(g => new TestSuiteDescriptor(
                     g.Key,
@@ -57,7 +57,7 @@ namespace Test.Shared
                 {
                     try
                     {
-                        object result = method.Invoke(null, null);
+                        object? result = method.Invoke(null, null);
                         if (result is Task task) return task;
                         return Task.CompletedTask;
                     }

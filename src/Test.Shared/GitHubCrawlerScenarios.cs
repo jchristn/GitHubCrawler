@@ -62,7 +62,7 @@ namespace Test.Shared
         {
             string json = GitHubJson.File("a.txt", "a.txt", "https://raw.githubusercontent.com/owner/repo/main/a.txt");
 
-            GitHubContent content = JsonSerializer.Deserialize<GitHubContent>(json);
+            GitHubContent? content = JsonSerializer.Deserialize<GitHubContent>(json);
 
             TestAssert.NotNull(content);
             TestAssert.Equal("a.txt", content.Name);
@@ -77,7 +77,7 @@ namespace Test.Shared
         {
             string json = GitHubJson.Directory("src", "src");
 
-            GitHubContent content = JsonSerializer.Deserialize<GitHubContent>(json);
+            GitHubContent? content = JsonSerializer.Deserialize<GitHubContent>(json);
 
             TestAssert.NotNull(content);
             TestAssert.Equal("dir", content.Type);
@@ -91,7 +91,7 @@ namespace Test.Shared
                 GitHubJson.File("a.txt", "a.txt", "https://raw/a.txt"),
                 GitHubJson.Directory("sub", "sub"));
 
-            List<GitHubContent> list = JsonSerializer.Deserialize<List<GitHubContent>>(json);
+            List<GitHubContent>? list = JsonSerializer.Deserialize<List<GitHubContent>>(json);
 
             TestAssert.NotNull(list);
             TestAssert.Count(2, list);
@@ -104,7 +104,7 @@ namespace Test.Shared
         {
             string json = "{\"name\":\"a.txt\",\"path\":\"a.txt\",\"type\":\"file\",\"sha\":\"abc123\",\"size\":42,\"download_url\":\"https://raw/a.txt\"}";
 
-            GitHubContent content = JsonSerializer.Deserialize<GitHubContent>(json);
+            GitHubContent? content = JsonSerializer.Deserialize<GitHubContent>(json);
 
             TestAssert.NotNull(content);
             TestAssert.Equal("a.txt", content.Name);
@@ -114,7 +114,7 @@ namespace Test.Shared
         [Scenario("content-model")]
         public static void Content_Deserialize_MissingFields_LeaveNull()
         {
-            GitHubContent content = JsonSerializer.Deserialize<GitHubContent>("{}");
+            GitHubContent? content = JsonSerializer.Deserialize<GitHubContent>("{}");
 
             TestAssert.NotNull(content);
             TestAssert.Null(content.Name);
@@ -127,7 +127,7 @@ namespace Test.Shared
         [Scenario("content-model")]
         public static void Content_Deserialize_EmptyArray_ProducesEmptyList()
         {
-            List<GitHubContent> list = JsonSerializer.Deserialize<List<GitHubContent>>("[]");
+            List<GitHubContent>? list = JsonSerializer.Deserialize<List<GitHubContent>>("[]");
 
             TestAssert.NotNull(list);
             TestAssert.Empty(list);
@@ -189,7 +189,7 @@ namespace Test.Shared
         [Scenario("lifecycle")]
         public static void Ctor_NullToken_Succeeds()
         {
-            using (GitHubRepoCrawler crawler = new GitHubRepoCrawler((string)null))
+            using (GitHubRepoCrawler crawler = new GitHubRepoCrawler((string?)null))
             {
                 TestAssert.NotNull(crawler);
             }
@@ -216,7 +216,7 @@ namespace Test.Shared
         [Scenario("lifecycle")]
         public static void Ctor_NullHandler_Throws()
         {
-            TestAssert.Throws<ArgumentNullException>(() => new GitHubRepoCrawler((HttpMessageHandler)null));
+            TestAssert.Throws<ArgumentNullException>(() => new GitHubRepoCrawler((HttpMessageHandler)null!));
         }
 
         [Scenario("lifecycle")]
@@ -254,7 +254,7 @@ namespace Test.Shared
             crawler.Dispose();
 
             await TestAssert.ThrowsAsync<ObjectDisposedException>(
-                () => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)));
+                () => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl))).ConfigureAwait(false);
         }
 
         [Scenario("lifecycle")]
@@ -264,7 +264,7 @@ namespace Test.Shared
             crawler.Dispose();
 
             await TestAssert.ThrowsAsync<ObjectDisposedException>(
-                () => crawler.GetFileContentsAsync("https://raw/a.txt"));
+                () => crawler.GetFileContentsAsync("https://raw/a.txt")).ConfigureAwait(false);
         }
 
         #endregion
@@ -274,43 +274,43 @@ namespace Test.Shared
         [Scenario("url-parsing")]
         public static async Task UrlParse_HttpsUrl_ParsesOwnerRepo()
         {
-            await AssertFirstApiUrl("https://github.com/owner/repo", RootContentsApiUrl);
+            await AssertFirstApiUrl("https://github.com/owner/repo", RootContentsApiUrl).ConfigureAwait(false);
         }
 
         [Scenario("url-parsing")]
         public static async Task UrlParse_HttpUrl_ParsesOwnerRepo()
         {
-            await AssertFirstApiUrl("http://github.com/owner/repo", RootContentsApiUrl);
+            await AssertFirstApiUrl("http://github.com/owner/repo", RootContentsApiUrl).ConfigureAwait(false);
         }
 
         [Scenario("url-parsing")]
         public static async Task UrlParse_SshUrl_ParsesOwnerRepo()
         {
-            await AssertFirstApiUrl("git@github.com:owner/repo", RootContentsApiUrl);
+            await AssertFirstApiUrl("git@github.com:owner/repo", RootContentsApiUrl).ConfigureAwait(false);
         }
 
         [Scenario("url-parsing")]
         public static async Task UrlParse_HttpsGitSuffix_Trimmed()
         {
-            await AssertFirstApiUrl("https://github.com/owner/repo.git", RootContentsApiUrl);
+            await AssertFirstApiUrl("https://github.com/owner/repo.git", RootContentsApiUrl).ConfigureAwait(false);
         }
 
         [Scenario("url-parsing")]
         public static async Task UrlParse_SshGitSuffix_Trimmed()
         {
-            await AssertFirstApiUrl("git@github.com:owner/repo.git", RootContentsApiUrl);
+            await AssertFirstApiUrl("git@github.com:owner/repo.git", RootContentsApiUrl).ConfigureAwait(false);
         }
 
         [Scenario("url-parsing")]
         public static async Task UrlParse_ExtraPathSegments_UsesOwnerAndRepo()
         {
-            await AssertFirstApiUrl("https://github.com/owner/repo/tree/main/src", RootContentsApiUrl);
+            await AssertFirstApiUrl("https://github.com/owner/repo/tree/main/src", RootContentsApiUrl).ConfigureAwait(false);
         }
 
         [Scenario("url-parsing")]
         public static async Task UrlParse_TrailingSlash_ParsesOwnerRepo()
         {
-            await AssertFirstApiUrl("https://github.com/owner/repo/", RootContentsApiUrl);
+            await AssertFirstApiUrl("https://github.com/owner/repo/", RootContentsApiUrl).ConfigureAwait(false);
         }
 
         [Scenario("url-parsing")]
@@ -318,7 +318,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]")))
             {
-                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync(null)));
+                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync(null!))).ConfigureAwait(false);
             }
         }
 
@@ -327,7 +327,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]")))
             {
-                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync(string.Empty)));
+                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync(string.Empty))).ConfigureAwait(false);
             }
         }
 
@@ -336,7 +336,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]")))
             {
-                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync("   ")));
+                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync("   "))).ConfigureAwait(false);
             }
         }
 
@@ -345,7 +345,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]")))
             {
-                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync("https://gitlab.com/owner/repo")));
+                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync("https://gitlab.com/owner/repo"))).ConfigureAwait(false);
             }
         }
 
@@ -354,7 +354,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]")))
             {
-                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync("https://github.com/owner")));
+                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync("https://github.com/owner"))).ConfigureAwait(false);
             }
         }
 
@@ -363,7 +363,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]")))
             {
-                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync("git@github.com:owner")));
+                await TestAssert.ThrowsAsync<ArgumentException>(() => DrainAsync(crawler.GetRepositoryContentsAsync("git@github.com:owner"))).ConfigureAwait(false);
             }
         }
 
@@ -377,7 +377,7 @@ namespace Test.Shared
             string downloadUrl = "https://raw.githubusercontent.com/owner/repo/main/a.txt";
             using (GitHubRepoCrawler crawler = CreateCrawler(request =>
             {
-                if (request.RequestUri.AbsoluteUri == RootContentsApiUrl)
+                if (request.RequestUri?.AbsoluteUri == RootContentsApiUrl)
                 {
                     return FakeHttpMessageHandler.Json(HttpStatusCode.OK, GitHubJson.Array(GitHubJson.File("a.txt", "a.txt", downloadUrl)));
                 }
@@ -385,7 +385,7 @@ namespace Test.Shared
                 return FakeHttpMessageHandler.Json(HttpStatusCode.NotFound, "not found");
             }))
             {
-                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Single(results);
                 TestAssert.Equal(downloadUrl, results[0]);
             }
@@ -402,7 +402,7 @@ namespace Test.Shared
                     GitHubJson.File("c.txt", "c.txt", "https://raw/c.txt")));
             }))
             {
-                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Count(3, results);
                 TestAssert.Equal("https://raw/a.txt", results[0]);
                 TestAssert.Equal("https://raw/b.txt", results[1]);
@@ -415,7 +415,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(request =>
             {
-                string url = request.RequestUri.AbsoluteUri;
+                string url = request.RequestUri?.AbsoluteUri ?? string.Empty;
                 if (url == RootContentsApiUrl)
                 {
                     return FakeHttpMessageHandler.Json(HttpStatusCode.OK, GitHubJson.Array(
@@ -432,7 +432,7 @@ namespace Test.Shared
                 return FakeHttpMessageHandler.Json(HttpStatusCode.NotFound, "not found");
             }))
             {
-                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Count(2, results);
                 TestAssert.Contains(results, "https://raw/a.txt");
                 TestAssert.Contains(results, "https://raw/sub/b.txt");
@@ -444,7 +444,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(request =>
             {
-                string url = request.RequestUri.AbsoluteUri;
+                string url = request.RequestUri?.AbsoluteUri ?? string.Empty;
                 if (url == RootContentsApiUrl)
                 {
                     return FakeHttpMessageHandler.Json(HttpStatusCode.OK, GitHubJson.Array(GitHubJson.Directory("a", "a")));
@@ -463,7 +463,7 @@ namespace Test.Shared
                 return FakeHttpMessageHandler.Json(HttpStatusCode.NotFound, "not found");
             }))
             {
-                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Single(results);
                 TestAssert.Equal("https://raw/a/b/c.txt", results[0]);
             }
@@ -476,7 +476,7 @@ namespace Test.Shared
             // contents of "a" must be yielded before the later sibling "z.txt".
             using (GitHubRepoCrawler crawler = CreateCrawler(request =>
             {
-                string url = request.RequestUri.AbsoluteUri;
+                string url = request.RequestUri?.AbsoluteUri ?? string.Empty;
                 if (url == RootContentsApiUrl)
                 {
                     return FakeHttpMessageHandler.Json(HttpStatusCode.OK, GitHubJson.Array(
@@ -493,7 +493,7 @@ namespace Test.Shared
                 return FakeHttpMessageHandler.Json(HttpStatusCode.NotFound, "not found");
             }))
             {
-                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Count(2, results);
                 TestAssert.Equal("https://raw/a/a1.txt", results[0]);
                 TestAssert.Equal("https://raw/z.txt", results[1]);
@@ -508,7 +508,7 @@ namespace Test.Shared
             using (CancellationTokenSource cts = new CancellationTokenSource())
             using (GitHubRepoCrawler crawler = CreateCrawler(request =>
             {
-                string url = request.RequestUri.AbsoluteUri;
+                string url = request.RequestUri?.AbsoluteUri ?? string.Empty;
                 if (url == RootContentsApiUrl)
                 {
                     return FakeHttpMessageHandler.Json(HttpStatusCode.OK, GitHubJson.Array(
@@ -524,12 +524,12 @@ namespace Test.Shared
 
                 await TestAssert.ThrowsAsync<OperationCanceledException>(async () =>
                 {
-                    await foreach (string url in crawler.GetRepositoryContentsAsync(ValidRepoUrl, cts.Token))
+                    await foreach (string url in crawler.GetRepositoryContentsAsync(ValidRepoUrl, cts.Token).ConfigureAwait(false))
                     {
                         collected.Add(url);
                         cts.Cancel();
                     }
-                });
+                }).ConfigureAwait(false);
 
                 TestAssert.Single(collected);
                 TestAssert.Equal("https://raw/a.txt", collected[0]);
@@ -541,7 +541,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]")))
             {
-                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Empty(results);
             }
         }
@@ -552,7 +552,7 @@ namespace Test.Shared
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, GitHubJson.Array(
                 GitHubJson.File("submodule", "submodule", null)))))
             {
-                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                List<string> results = await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Empty(results);
             }
         }
@@ -562,8 +562,11 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.NotFound, "{}")))
             {
-                Exception ex = await TestAssert.ThrowsAsync<Exception>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)));
+                GitHubRepositoryNotFoundException ex = await TestAssert.ThrowsAsync<GitHubRepositoryNotFoundException>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl))).ConfigureAwait(false);
                 TestAssert.Contains(ex.Message, "Repository not found");
+                TestAssert.Equal("owner", ex.Owner);
+                TestAssert.Equal("repo", ex.Repository);
+                TestAssert.Equal((HttpStatusCode?)HttpStatusCode.NotFound, ex.StatusCode);
             }
         }
 
@@ -572,8 +575,9 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.Forbidden, "{}")))
             {
-                Exception ex = await TestAssert.ThrowsAsync<Exception>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)));
+                GitHubRateLimitException ex = await TestAssert.ThrowsAsync<GitHubRateLimitException>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl))).ConfigureAwait(false);
                 TestAssert.Contains(ex.Message, "rate limit");
+                TestAssert.Equal((HttpStatusCode?)HttpStatusCode.Forbidden, ex.StatusCode);
             }
         }
 
@@ -582,8 +586,9 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.InternalServerError, "{}")))
             {
-                Exception ex = await TestAssert.ThrowsAsync<Exception>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)));
+                GitHubCrawlerException ex = await TestAssert.ThrowsAsync<GitHubCrawlerException>(() => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl))).ConfigureAwait(false);
                 TestAssert.Contains(ex.Message, "API request failed");
+                TestAssert.Equal((HttpStatusCode?)HttpStatusCode.InternalServerError, ex.StatusCode);
             }
         }
 
@@ -595,7 +600,7 @@ namespace Test.Shared
             {
                 cts.Cancel();
                 await TestAssert.ThrowsAsync<OperationCanceledException>(
-                    () => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl, cts.Token)));
+                    () => DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl, cts.Token))).ConfigureAwait(false);
             }
         }
 
@@ -605,7 +610,7 @@ namespace Test.Shared
             FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]"));
             using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler))
             {
-                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Single(handler.RequestedUris);
                 TestAssert.Equal(RootContentsApiUrl, handler.RequestedUris[0]);
             }
@@ -621,7 +626,7 @@ namespace Test.Shared
             byte[] payload = Encoding.UTF8.GetBytes("hello world");
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, payload, "text/plain")))
             {
-                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/a.txt");
+                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/a.txt").ConfigureAwait(false);
                 TestAssert.NotNull(response);
                 TestAssert.NotNull(response.Content);
                 TestAssert.Equal("hello world", Encoding.UTF8.GetString(response.Content));
@@ -633,7 +638,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1, 2, 3 }, "application/octet-stream")))
             {
-                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/a.bin");
+                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/a.bin").ConfigureAwait(false);
                 TestAssert.Equal(HttpStatusCode.OK, response.StatusCode);
             }
         }
@@ -643,7 +648,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain")))
             {
-                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/a.txt");
+                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/a.txt").ConfigureAwait(false);
                 TestAssert.NotNull(response.ContentType);
                 TestAssert.Contains(response.ContentType, "text/plain");
             }
@@ -655,7 +660,7 @@ namespace Test.Shared
             string url = "https://raw.githubusercontent.com/owner/repo/main/a.txt";
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain")))
             {
-                GitHubFileResponse response = await crawler.GetFileContentsAsync(url);
+                GitHubFileResponse response = await crawler.GetFileContentsAsync(url).ConfigureAwait(false);
                 TestAssert.NotNull(response.FinalUrl);
                 TestAssert.Equal(url, response.FinalUrl.ToString());
             }
@@ -667,7 +672,7 @@ namespace Test.Shared
             Dictionary<string, string> responseHeaders = new Dictionary<string, string> { { "X-Test", "abc" } };
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain", responseHeaders)))
             {
-                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/a.txt");
+                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/a.txt").ConfigureAwait(false);
                 TestAssert.NotNull(response.Headers);
                 TestAssert.True(response.Headers.ContainsKey("X-Test"));
             }
@@ -678,7 +683,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, Array.Empty<byte>(), "text/plain")))
             {
-                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/empty.txt");
+                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/empty.txt").ConfigureAwait(false);
                 TestAssert.NotNull(response.Content);
                 TestAssert.Equal(0, response.Content.Length);
             }
@@ -689,7 +694,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, null)))
             {
-                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/a.bin");
+                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/a.bin").ConfigureAwait(false);
                 TestAssert.Null(response.ContentType);
             }
         }
@@ -699,7 +704,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.NotFound, Encoding.UTF8.GetBytes("nope"), "text/plain")))
             {
-                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/missing.txt");
+                GitHubFileResponse response = await crawler.GetFileContentsAsync("https://raw/missing.txt").ConfigureAwait(false);
                 TestAssert.NotNull(response);
                 TestAssert.Equal(HttpStatusCode.NotFound, response.StatusCode);
             }
@@ -710,7 +715,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain")))
             {
-                await TestAssert.ThrowsAsync<ArgumentException>(() => crawler.GetFileContentsAsync(null));
+                await TestAssert.ThrowsAsync<ArgumentException>(() => crawler.GetFileContentsAsync(null!)).ConfigureAwait(false);
             }
         }
 
@@ -719,7 +724,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain")))
             {
-                await TestAssert.ThrowsAsync<ArgumentException>(() => crawler.GetFileContentsAsync(string.Empty));
+                await TestAssert.ThrowsAsync<ArgumentException>(() => crawler.GetFileContentsAsync(string.Empty)).ConfigureAwait(false);
             }
         }
 
@@ -728,7 +733,7 @@ namespace Test.Shared
         {
             using (GitHubRepoCrawler crawler = CreateCrawler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain")))
             {
-                await TestAssert.ThrowsAsync<ArgumentException>(() => crawler.GetFileContentsAsync("   "));
+                await TestAssert.ThrowsAsync<ArgumentException>(() => crawler.GetFileContentsAsync("   ")).ConfigureAwait(false);
             }
         }
 
@@ -739,7 +744,7 @@ namespace Test.Shared
             using (CancellationTokenSource cts = new CancellationTokenSource())
             {
                 cts.Cancel();
-                await TestAssert.ThrowsAsync<OperationCanceledException>(() => crawler.GetFileContentsAsync("https://raw/a.txt", cts.Token));
+                await TestAssert.ThrowsAsync<OperationCanceledException>(() => crawler.GetFileContentsAsync("https://raw/a.txt", cts.Token)).ConfigureAwait(false);
             }
         }
 
@@ -756,7 +761,7 @@ namespace Test.Shared
             FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]"));
             using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler))
             {
-                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Single(handler.Requests);
                 TestAssert.Equal(ExpectedUserAgent, handler.Requests[0].Header("User-Agent"));
             }
@@ -768,7 +773,7 @@ namespace Test.Shared
             FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]"));
             using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler))
             {
-                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Single(handler.Requests);
                 TestAssert.False(handler.Requests[0].HasHeader("Authorization"));
             }
@@ -780,7 +785,7 @@ namespace Test.Shared
             FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]"));
             using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler, SampleToken))
             {
-                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl));
+                await DrainAsync(crawler.GetRepositoryContentsAsync(ValidRepoUrl)).ConfigureAwait(false);
                 TestAssert.Single(handler.Requests);
                 TestAssert.True(handler.Requests[0].HasHeader("Authorization"));
                 TestAssert.Equal("token " + SampleToken, handler.Requests[0].Header("Authorization"));
@@ -793,7 +798,7 @@ namespace Test.Shared
             FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain"));
             using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler))
             {
-                await crawler.GetFileContentsAsync("https://raw/a.txt");
+                await crawler.GetFileContentsAsync("https://raw/a.txt").ConfigureAwait(false);
                 TestAssert.Single(handler.Requests);
                 TestAssert.Equal(ExpectedUserAgent, handler.Requests[0].Header("User-Agent"));
             }
@@ -805,7 +810,7 @@ namespace Test.Shared
             FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain"));
             using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler, SampleToken))
             {
-                await crawler.GetFileContentsAsync("https://raw/a.txt");
+                await crawler.GetFileContentsAsync("https://raw/a.txt").ConfigureAwait(false);
                 TestAssert.Single(handler.Requests);
                 TestAssert.Equal("token " + SampleToken, handler.Requests[0].Header("Authorization"));
             }
@@ -817,7 +822,7 @@ namespace Test.Shared
             FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Bytes(HttpStatusCode.OK, new byte[] { 1 }, "text/plain"));
             using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler))
             {
-                await crawler.GetFileContentsAsync("https://raw/a.txt");
+                await crawler.GetFileContentsAsync("https://raw/a.txt").ConfigureAwait(false);
                 TestAssert.Single(handler.Requests);
                 TestAssert.False(handler.Requests[0].HasHeader("Authorization"));
             }
@@ -832,22 +837,23 @@ namespace Test.Shared
             return new GitHubRepoCrawler(new FakeHttpMessageHandler(responder));
         }
 
-        private static async Task AssertFirstApiUrl(string gitUrl, string expectedApiUrl)
+        private static async Task AssertFirstApiUrl(string gitUrl, string expectedApiUrl, CancellationToken token = default)
         {
             FakeHttpMessageHandler handler = new FakeHttpMessageHandler(_ => FakeHttpMessageHandler.Json(HttpStatusCode.OK, "[]"));
             using (GitHubRepoCrawler crawler = new GitHubRepoCrawler(handler))
             {
-                await DrainAsync(crawler.GetRepositoryContentsAsync(gitUrl));
+                await DrainAsync(crawler.GetRepositoryContentsAsync(gitUrl, token), token).ConfigureAwait(false);
                 TestAssert.True(handler.RequestedUris.Count >= 1, "Expected at least one request to be made.");
                 TestAssert.Equal(expectedApiUrl, handler.RequestedUris[0]);
             }
         }
 
-        private static async Task<List<string>> DrainAsync(IAsyncEnumerable<string> source)
+        private static async Task<List<string>> DrainAsync(IAsyncEnumerable<string> source, CancellationToken token = default)
         {
             List<string> results = new List<string>();
-            await foreach (string item in source.ConfigureAwait(false))
+            await foreach (string item in source.WithCancellation(token).ConfigureAwait(false))
             {
+                token.ThrowIfCancellationRequested();
                 results.Add(item);
             }
 

@@ -8,7 +8,7 @@ namespace Test.Shared
     /// </summary>
     internal sealed class CapturedMeasurement
     {
-        internal CapturedMeasurement(string instrument, string unit, double value, Dictionary<string, string> tags)
+        internal CapturedMeasurement(string instrument, string? unit, double value, Dictionary<string, string> tags)
         {
             Instrument = instrument;
             Unit = unit;
@@ -18,29 +18,29 @@ namespace Test.Shared
 
         internal string Instrument { get; }
 
-        internal string Unit { get; }
+        internal string? Unit { get; }
 
         internal double Value { get; }
 
         internal Dictionary<string, string> Tags { get; }
 
-        internal string Tag(string key)
+        internal string? Tag(string key)
         {
-            return Tags.TryGetValue(key, out string value) ? value : null;
+            return Tags.TryGetValue(key, out string? value) ? value : null;
         }
 
         /// <summary>
         /// Returns true when every key/value pair in <paramref name="tagPairs"/> (alternating key, value) matches.
         /// A null expected value asserts the tag is absent.
         /// </summary>
-        internal bool Matches(string[] tagPairs)
+        internal bool Matches(string?[]? tagPairs)
         {
             if (tagPairs == null) return true;
             if (tagPairs.Length % 2 != 0) throw new ArgumentException("Tag pairs must be key/value pairs.", nameof(tagPairs));
 
             for (int i = 0; i < tagPairs.Length; i += 2)
             {
-                if (!string.Equals(Tag(tagPairs[i]), tagPairs[i + 1], StringComparison.Ordinal)) return false;
+                if (!string.Equals(Tag(tagPairs[i] ?? string.Empty), tagPairs[i + 1], StringComparison.Ordinal)) return false;
             }
 
             return true;

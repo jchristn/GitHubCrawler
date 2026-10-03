@@ -11,11 +11,6 @@ namespace Test.XUnit
     /// xUnit host that surfaces every shared Touchstone descriptor as an individual theory case,
     /// so the shared suite runs under <c>dotnet test</c> via xUnit.
     /// </summary>
-    [CollectionDefinition("GitHubCrawler", DisableParallelization = true)]
-    public sealed class GitHubCrawlerCollection
-    {
-    }
-
     [Collection("GitHubCrawler")]
     public sealed class GitHubCrawlerTests
     {

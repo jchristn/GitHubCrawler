@@ -2,6 +2,7 @@ namespace Test.Shared
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics.CodeAnalysis;
     using System.Linq;
     using System.Threading.Tasks;
 
@@ -11,17 +12,17 @@ namespace Test.Shared
     /// </summary>
     internal static class TestAssert
     {
-        internal static void True(bool condition, string message = null)
+        internal static void True([DoesNotReturnIf(false)] bool condition, string? message = null)
         {
             if (!condition) throw new InvalidOperationException(message ?? "Expected condition to be true.");
         }
 
-        internal static void False(bool condition, string message = null)
+        internal static void False([DoesNotReturnIf(true)] bool condition, string? message = null)
         {
             if (condition) throw new InvalidOperationException(message ?? "Expected condition to be false.");
         }
 
-        internal static void Equal<T>(T expected, T actual, string message = null)
+        internal static void Equal<T>(T expected, T actual, string? message = null)
         {
             if (!EqualityComparer<T>.Default.Equals(expected, actual))
             {
@@ -29,7 +30,7 @@ namespace Test.Shared
             }
         }
 
-        internal static void NotEqual<T>(T expected, T actual, string message = null)
+        internal static void NotEqual<T>(T expected, T actual, string? message = null)
         {
             if (EqualityComparer<T>.Default.Equals(expected, actual))
             {
@@ -37,23 +38,23 @@ namespace Test.Shared
             }
         }
 
-        internal static void Null(object value, string message = null)
+        internal static void Null(object? value, string? message = null)
         {
             if (value != null) throw new InvalidOperationException(message ?? "Expected value to be null.");
         }
 
-        internal static void NotNull(object value, string message = null)
+        internal static void NotNull([NotNull] object? value, string? message = null)
         {
             if (value == null) throw new InvalidOperationException(message ?? "Expected value to be non-null.");
         }
 
-        internal static void Empty<T>(IEnumerable<T> values, string message = null)
+        internal static void Empty<T>([NotNull] IEnumerable<T>? values, string? message = null)
         {
             if (values == null) throw new InvalidOperationException(message ?? "Expected an empty collection but it was null.");
             if (values.Any()) throw new InvalidOperationException(message ?? "Expected an empty collection.");
         }
 
-        internal static void Single<T>(IEnumerable<T> values, string message = null)
+        internal static void Single<T>([NotNull] IEnumerable<T>? values, string? message = null)
         {
             if (values == null) throw new InvalidOperationException(message ?? "Expected a single value but collection was null.");
 
@@ -64,7 +65,7 @@ namespace Test.Shared
             }
         }
 
-        internal static void Count<T>(int expected, IEnumerable<T> values, string message = null)
+        internal static void Count<T>(int expected, [NotNull] IEnumerable<T>? values, string? message = null)
         {
             if (values == null) throw new InvalidOperationException(message ?? "Expected a collection but it was null.");
 
@@ -75,7 +76,7 @@ namespace Test.Shared
             }
         }
 
-        internal static void Contains(string haystack, string needle, string message = null)
+        internal static void Contains(string? haystack, string? needle, string? message = null)
         {
             if (haystack == null || needle == null || !haystack.Contains(needle))
             {
@@ -83,7 +84,7 @@ namespace Test.Shared
             }
         }
 
-        internal static void Contains<T>(IEnumerable<T> values, T expected, string message = null)
+        internal static void Contains<T>([NotNull] IEnumerable<T>? values, T expected, string? message = null)
         {
             if (values == null || !values.Contains(expected))
             {

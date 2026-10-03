@@ -1,28 +1,103 @@
-﻿namespace GitHubCrawler
+namespace GitHubCrawler
 {
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Globalization;
     using System.Linq;
+    using System.Net;
     using System.Net.Http;
+    using System.Runtime.CompilerServices;
     using System.Text.Json;
+    using System.Threading;
     using System.Threading.Tasks;
 
     /// <summary>
-    /// GitHub repository crawler that implements IDisposable for proper resource cleanup.
+    /// GitHub repository crawler that discovers file URLs through the GitHub REST API (v3) and downloads file contents.
+    /// Implements <see cref="IDisposable"/>; the crawler owns its <see cref="HttpClient"/> and message handler.
+    /// Thread safety: <see cref="GetRepositoryContentsAsync"/> and <see cref="GetFileContentsAsync"/> may be called
+    /// concurrently from multiple threads. Set <see cref="ApiBaseUrl"/> and <see cref="UserAgent"/> before issuing requests;
+    /// changing them while requests are in flight is not supported. <see cref="Dispose()"/> must not race with in-flight calls.
     /// </summary>
     public class GitHubRepoCrawler : IDisposable
     {
-        private HttpClient _httpClient = null;
-        private readonly string _githubToken = null;
+        /// <summary>
+        /// Default value of <see cref="ApiBaseUrl"/>: the public GitHub REST API.
+        /// </summary>
+        public const string DefaultApiBaseUrl = "https://api.github.com/";
+
+        /// <summary>
+        /// Default value of <see cref="UserAgent"/>.
+        /// </summary>
+        public const string DefaultUserAgent = "GitHubRepoCrawler/1.0";
+
+        /// <summary>
+        /// Base URL of the GitHub REST API. Override it to target GitHub Enterprise Server (for example
+        /// "https://github.example.com/api/v3/"). Must be an absolute http or https URL.
+        /// Default: <see cref="DefaultApiBaseUrl"/>. A trailing slash is optional.
+        /// Never null.
+        /// </summary>
+        /// <exception cref="ArgumentNullException">Thrown when set to null.</exception>
+        /// <exception cref="ArgumentException">Thrown when set to a value that is not an absolute http or https URL.</exception>
+        public string ApiBaseUrl
+        {
+            get
+            {
+                return _ApiBaseUrl;
+            }
+            set
+            {
+                ArgumentNullException.ThrowIfNull(value);
+
+                if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)
+                    || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                {
+                    throw new ArgumentException("ApiBaseUrl must be an absolute http or https URL, but was '" + value + "'.", nameof(value));
+                }
+
+                _ApiBaseUrl = value.EndsWith("/", StringComparison.Ordinal) ? value : value + "/";
+                _ApiHost = uri.Host;
+            }
+        }
+
+        /// <summary>
+        /// User-Agent header sent with every request. GitHub requires a User-Agent and recommends one that identifies
+        /// your application. Default: <see cref="DefaultUserAgent"/>. Must not be null, empty, or whitespace.
+        /// Never null.
+        /// </summary>
+        /// <exception cref="ArgumentNullException">Thrown when set to null.</exception>
+        /// <exception cref="ArgumentException">Thrown when set to an empty or whitespace value.</exception>
+        /// <exception cref="ObjectDisposedException">Thrown when set after the crawler has been disposed.</exception>
+        public string UserAgent
+        {
+            get
+            {
+                return _UserAgent;
+            }
+            set
+            {
+                ArgumentNullException.ThrowIfNull(value);
+                if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException("UserAgent must not be empty or whitespace.", nameof(value));
+
+                HttpClient client = GetClient();
+                client.DefaultRequestHeaders.UserAgent.Clear();
+                client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", value);
+                _UserAgent = value;
+            }
+        }
+
         private readonly string _Auth = GitHubCrawlerTelemetry.AuthAnonymous;
-        private bool _disposed = false;
+        private HttpClient? _HttpClient = null;
+        private string _ApiBaseUrl = DefaultApiBaseUrl;
+        private string _ApiHost = "api.github.com";
+        private string _UserAgent = DefaultUserAgent;
+        private bool _Disposed = false;
 
         /// <summary>
         /// Initializes a new instance of the GitHubRepoCrawler class.
         /// </summary>
-        /// <param name="token">Optional GitHub personal access token for authenticated requests.</param>
-        public GitHubRepoCrawler(string token = null)
+        /// <param name="token">Optional GitHub personal access token for authenticated requests. Null or empty sends no Authorization header.</param>
+        public GitHubRepoCrawler(string? token = null)
             : this(new HttpClientHandler(), token)
         {
         }
@@ -33,19 +108,18 @@
         /// fake handler for testing.
         /// </summary>
         /// <param name="handler">The HTTP message handler used to send requests. The handler is owned by this instance and is disposed when the crawler is disposed.</param>
-        /// <param name="token">Optional GitHub personal access token for authenticated requests.</param>
+        /// <param name="token">Optional GitHub personal access token for authenticated requests. Null or empty sends no Authorization header.</param>
         /// <exception cref="ArgumentNullException">Thrown when the handler is null.</exception>
-        public GitHubRepoCrawler(HttpMessageHandler handler, string token = null)
+        public GitHubRepoCrawler(HttpMessageHandler handler, string? token = null)
         {
-            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            ArgumentNullException.ThrowIfNull(handler);
 
-            _httpClient = new HttpClient(handler);
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "GitHubRepoCrawler/1.0");
+            _HttpClient = new HttpClient(handler);
+            _HttpClient.DefaultRequestHeaders.Add("User-Agent", DefaultUserAgent);
 
             if (!string.IsNullOrEmpty(token))
             {
-                _githubToken = token;
-                _httpClient.DefaultRequestHeaders.Add("Authorization", $"token {token}");
+                _HttpClient.DefaultRequestHeaders.Add("Authorization", $"token {token}");
                 _Auth = GitHubCrawlerTelemetry.AuthToken;
             }
 
@@ -53,19 +127,24 @@
         }
 
         /// <summary>
-        /// Asynchronously retrieves all file URLs from a GitHub repository.
+        /// Asynchronously retrieves all file URLs from a GitHub repository, recursing into every directory.
         /// Emits the "githubcrawler crawl_repository" span with one "github contents.list" child per directory, and the
         /// githubcrawler.operation.* and githubcrawler.github.* metrics. See TELEMETRY.md.
         /// </summary>
-        /// <param name="gitUrl">The GitHub repository URL.</param>
+        /// <param name="gitUrl">The GitHub repository URL (https://github.com/owner/repo, optionally ending in .git, or git@github.com:owner/repo.git).</param>
         /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-        /// <returns>An async enumerable of file download URLs.</returns>
+        /// <returns>An async enumerable of file download URLs. Never null; items are never null or empty.</returns>
         /// <exception cref="ObjectDisposedException">Thrown when this method is called after the object has been disposed.</exception>
         /// <exception cref="ArgumentException">Thrown when the provided URL is invalid.</exception>
-        /// <exception cref="OperationCanceledException">Thrown when the operation is cancelled.</exception>
+        /// <exception cref="GitHubRepositoryNotFoundException">Thrown when GitHub returns HTTP 404 for the repository or a directory.</exception>
+        /// <exception cref="GitHubRateLimitException">Thrown when GitHub returns HTTP 403 or 429.</exception>
+        /// <exception cref="GitHubCrawlerException">Thrown when GitHub returns any other unsuccessful status code.</exception>
+        /// <exception cref="JsonException">Thrown when a directory listing response is not valid JSON.</exception>
+        /// <exception cref="HttpRequestException">Thrown when the request fails at the network level.</exception>
+        /// <exception cref="OperationCanceledException">Thrown when the operation is cancelled or times out.</exception>
         public async IAsyncEnumerable<string> GetRepositoryContentsAsync(
-            string gitUrl, 
-            [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default)
+            string gitUrl,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             OperationScope scope = OperationScope.Start(
                 GitHubCrawlerTelemetry.OperationCrawlRepository,
@@ -73,7 +152,7 @@
                 cancellationToken);
 
             CrawlCounters counters = new CrawlCounters();
-            IAsyncEnumerator<string> enumerator = null;
+            IAsyncEnumerator<string>? enumerator = null;
 
             try
             {
@@ -86,16 +165,16 @@
                         throw new ArgumentException("Invalid GitHub repository URL", nameof(gitUrl));
                     }
 
-                    var (owner, repo) = ParseGitUrl(gitUrl);
-                    if (string.IsNullOrEmpty(owner) || string.IsNullOrEmpty(repo))
+                    GitHubRepositoryReference? repository = GitHubRepositoryReference.Parse(gitUrl);
+                    if (repository == null)
                     {
                         throw new ArgumentException("Invalid GitHub repository URL");
                     }
 
-                    scope.Activity?.SetTag(GitHubCrawlerTelemetry.AttributeGitHubOwner, owner);
-                    scope.Activity?.SetTag(GitHubCrawlerTelemetry.AttributeGitHubRepo, repo);
+                    scope.Activity?.SetTag(GitHubCrawlerTelemetry.AttributeGitHubOwner, repository.Owner);
+                    scope.Activity?.SetTag(GitHubCrawlerTelemetry.AttributeGitHubRepo, repository.Repository);
 
-                    enumerator = CrawlDirectoryAsync(owner, repo, "", 0, scope.Context, counters, cancellationToken)
+                    enumerator = CrawlDirectoryAsync(repository, string.Empty, 0, scope.Context, counters, cancellationToken)
                         .GetAsyncEnumerator(cancellationToken);
                 }
                 catch (Exception e)
@@ -106,7 +185,7 @@
 
                 while (true)
                 {
-                    string url = null;
+                    string url;
 
                     try
                     {
@@ -137,22 +216,24 @@
         }
 
         /// <summary>
-        /// Asynchronously downloads file contents from a GitHub URL.
+        /// Asynchronously downloads file contents from a GitHub URL. The response is fully buffered into
+        /// <see cref="GitHubFileResponse.Content"/> and the underlying HTTP response is disposed before returning.
+        /// A response with a status code of 400 or above is returned to the caller (it is not thrown), and is recorded in
+        /// telemetry as a failure with error.type set to the status code.
         /// Emits the "githubcrawler get_file_contents" span with a "github file.download" child, and the
         /// githubcrawler.operation.*, githubcrawler.github.*, and githubcrawler.file.download.size metrics.
-        /// A response with a status code of 400 or above is returned to the caller as before, and is recorded as a failure
-        /// with error.type set to the status code.
         /// </summary>
         /// <param name="url">The file download URL.</param>
         /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-        /// <returns>A GitHubFileResponse containing the file content and metadata.</returns>
+        /// <returns>A GitHubFileResponse containing the file content and metadata. Never null.</returns>
         /// <exception cref="ObjectDisposedException">Thrown when this method is called after the object has been disposed.</exception>
         /// <exception cref="ArgumentException">Thrown when the URL is null or empty.</exception>
-        /// <exception cref="Exception">Thrown when the file cannot be fetched.</exception>
-        /// <exception cref="OperationCanceledException">Thrown when the operation is cancelled.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the URL is not an absolute URL.</exception>
+        /// <exception cref="HttpRequestException">Thrown when the request fails at the network level.</exception>
+        /// <exception cref="OperationCanceledException">Thrown when the operation is cancelled or times out.</exception>
         public async Task<GitHubFileResponse> GetFileContentsAsync(
-            string url, 
-            System.Threading.CancellationToken cancellationToken = default)
+            string url,
+            CancellationToken cancellationToken = default)
         {
             OperationScope scope = OperationScope.Start(
                 GitHubCrawlerTelemetry.OperationGetFileContents,
@@ -182,10 +263,38 @@
             }
         }
 
-        private async Task<GitHubFileResponse> DownloadFileAsync(string url, System.Threading.CancellationToken cancellationToken)
+        /// <summary>
+        /// Releases all resources used by the GitHubRepoCrawler.
+        /// </summary>
+        public void Dispose()
         {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Releases the unmanaged resources used by the GitHubRepoCrawler and optionally releases the managed resources.
+        /// </summary>
+        /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_Disposed) return;
+
+            if (disposing)
+            {
+                _HttpClient?.Dispose();
+                _HttpClient = null;
+            }
+
+            CrawlerInstrumentation.CrawlerDisposed(_Auth);
+            _Disposed = true;
+        }
+
+        private async Task<GitHubFileResponse> DownloadFileAsync(string url, CancellationToken cancellationToken)
+        {
+            HttpClient client = GetClient();
             long start = Stopwatch.GetTimestamp();
-            Activity activity = CrawlerInstrumentation.StartActivity(
+            Activity? activity = CrawlerInstrumentation.StartActivity(
                 GitHubCrawlerTelemetry.SpanGitHubFileDownload,
                 ActivityKind.Client,
                 default(ActivityContext));
@@ -193,7 +302,7 @@
             activity?.SetTag(GitHubCrawlerTelemetry.AttributeGitHubOperation, GitHubCrawlerTelemetry.GitHubOperationFileDownload);
             activity?.SetTag(GitHubCrawlerTelemetry.AttributeHttpRequestMethod, "GET");
 
-            if (activity != null && Uri.TryCreate(url, UriKind.Absolute, out Uri requestUri))
+            if (activity != null && Uri.TryCreate(url, UriKind.Absolute, out Uri? requestUri))
             {
                 activity.SetTag(GitHubCrawlerTelemetry.AttributeServerAddress, requestUri.Host);
                 activity.SetTag(GitHubCrawlerTelemetry.AttributeUrlFull, CrawlerInstrumentation.SanitizeUrl(requestUri));
@@ -203,47 +312,43 @@
 
             try
             {
-                HttpResponseMessage response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-                statusCode = (int)response.StatusCode;
-                activity?.SetTag(GitHubCrawlerTelemetry.AttributeHttpResponseStatusCode, statusCode);
-                CrawlerInstrumentation.ObserveRateLimit(response, _Auth, activity);
-
-                byte[] contentBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
-
-                GitHubFileResponse result = new GitHubFileResponse
+                using (HttpResponseMessage response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false))
                 {
-                    Content = contentBytes,
-                    ContentType = response.Content.Headers.ContentType?.ToString(),
-                    StatusCode = response.StatusCode,
-                    FinalUrl = response.RequestMessage.RequestUri,
-                    Headers = response.Headers.ToDictionary(
-                        h => h.Key,
-                        h => h.Value
-                    )
-                };
+                    statusCode = (int)response.StatusCode;
+                    activity?.SetTag(GitHubCrawlerTelemetry.AttributeHttpResponseStatusCode, statusCode);
+                    CrawlerInstrumentation.ObserveRateLimit(response, _Auth, activity);
 
-                long size = contentBytes != null ? contentBytes.LongLength : 0;
-                activity?.SetTag(GitHubCrawlerTelemetry.AttributeHttpResponseBodySize, size);
+                    byte[] contentBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
 
-                if (statusCode >= 400)
-                {
-                    string errorType = CrawlerInstrumentation.StatusErrorType(response.StatusCode);
-                    CrawlerInstrumentation.MarkFailure(activity, GitHubCrawlerTelemetry.OutcomeFailure, errorType, "HTTP " + statusCode, null);
+                    GitHubFileResponse result = new GitHubFileResponse
+                    {
+                        Content = contentBytes,
+                        ContentType = response.Content.Headers.ContentType?.ToString(),
+                        StatusCode = response.StatusCode,
+                        FinalUrl = response.RequestMessage?.RequestUri,
+                        Headers = response.Headers.ToDictionary(
+                            h => h.Key,
+                            h => (IEnumerable<string>)h.Value.ToArray())
+                    };
+
+                    long size = contentBytes.LongLength;
+                    activity?.SetTag(GitHubCrawlerTelemetry.AttributeHttpResponseBodySize, size);
+
+                    string outcome = statusCode >= 400 ? GitHubCrawlerTelemetry.OutcomeFailure : GitHubCrawlerTelemetry.OutcomeSuccess;
+                    string? errorType = statusCode >= 400 ? CrawlerInstrumentation.StatusErrorType(response.StatusCode) : null;
+
+                    if (errorType != null)
+                        CrawlerInstrumentation.MarkFailure(activity, outcome, errorType, "HTTP " + statusCode, null);
+                    else
+                        CrawlerInstrumentation.MarkSuccess(activity);
+
                     CrawlerInstrumentation.GitHubRequestCompleted(
                         GitHubCrawlerTelemetry.GitHubOperationFileDownload, _Auth, statusCode,
-                        GitHubCrawlerTelemetry.OutcomeFailure, errorType, CrawlerInstrumentation.ElapsedSeconds(start));
-                    CrawlerInstrumentation.FileDownloaded(GitHubCrawlerTelemetry.OutcomeFailure, size);
-                }
-                else
-                {
-                    CrawlerInstrumentation.MarkSuccess(activity);
-                    CrawlerInstrumentation.GitHubRequestCompleted(
-                        GitHubCrawlerTelemetry.GitHubOperationFileDownload, _Auth, statusCode,
-                        GitHubCrawlerTelemetry.OutcomeSuccess, null, CrawlerInstrumentation.ElapsedSeconds(start));
-                    CrawlerInstrumentation.FileDownloaded(GitHubCrawlerTelemetry.OutcomeSuccess, size);
-                }
+                        outcome, errorType, CrawlerInstrumentation.ElapsedSeconds(start));
+                    CrawlerInstrumentation.FileDownloaded(outcome, size);
 
-                return result;
+                    return result;
+                }
             }
             catch (Exception e)
             {
@@ -257,29 +362,28 @@
         }
 
         private async IAsyncEnumerable<string> CrawlDirectoryAsync(
-            string owner,
-            string repo,
+            GitHubRepositoryReference repository,
             string path,
             int depth,
             ActivityContext parent,
             CrawlCounters counters,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default)
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
 
-            List<GitHubContent> items = await ListDirectoryAsync(owner, repo, path, depth, parent, cancellationToken).ConfigureAwait(false);
+            List<GitHubContent> items = await ListDirectoryAsync(repository, path, depth, parent, cancellationToken).ConfigureAwait(false);
             counters.Directories++;
 
-            foreach (var item in items)
+            foreach (GitHubContent item in items)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (!String.IsNullOrEmpty(item.DownloadUrl))
+                if (!string.IsNullOrEmpty(item.DownloadUrl))
                     yield return item.DownloadUrl;
 
-                if (item.Type == "dir")
+                if (item.Type == "dir" && item.Path != null)
                 {
-                    await foreach (var subItem in CrawlDirectoryAsync(owner, repo, item.Path, depth + 1, parent, counters, cancellationToken).ConfigureAwait(false))
+                    await foreach (string subItem in CrawlDirectoryAsync(repository, item.Path, depth + 1, parent, counters, cancellationToken).ConfigureAwait(false))
                     {
                         yield return subItem;
                     }
@@ -288,17 +392,17 @@
         }
 
         private async Task<List<GitHubContent>> ListDirectoryAsync(
-            string owner,
-            string repo,
+            GitHubRepositoryReference repository,
             string path,
             int depth,
             ActivityContext parent,
-            System.Threading.CancellationToken cancellationToken)
+            CancellationToken cancellationToken)
         {
-            var apiUrl = $"https://api.github.com/repos/{owner}/{repo}/contents/{path}";
+            HttpClient client = GetClient();
+            string apiUrl = $"{_ApiBaseUrl}repos/{repository.Owner}/{repository.Repository}/contents/{path}";
 
             long start = Stopwatch.GetTimestamp();
-            Activity activity = CrawlerInstrumentation.StartActivity(
+            Activity? activity = CrawlerInstrumentation.StartActivity(
                 GitHubCrawlerTelemetry.SpanGitHubContentsList,
                 ActivityKind.Client,
                 parent);
@@ -306,12 +410,12 @@
             if (activity != null)
             {
                 activity.SetTag(GitHubCrawlerTelemetry.AttributeGitHubOperation, GitHubCrawlerTelemetry.GitHubOperationContentsList);
-                activity.SetTag(GitHubCrawlerTelemetry.AttributeGitHubOwner, owner);
-                activity.SetTag(GitHubCrawlerTelemetry.AttributeGitHubRepo, repo);
+                activity.SetTag(GitHubCrawlerTelemetry.AttributeGitHubOwner, repository.Owner);
+                activity.SetTag(GitHubCrawlerTelemetry.AttributeGitHubRepo, repository.Repository);
                 activity.SetTag(GitHubCrawlerTelemetry.AttributeGitHubPath, path);
                 activity.SetTag(GitHubCrawlerTelemetry.AttributeDepth, depth);
                 activity.SetTag(GitHubCrawlerTelemetry.AttributeHttpRequestMethod, "GET");
-                activity.SetTag(GitHubCrawlerTelemetry.AttributeServerAddress, "api.github.com");
+                activity.SetTag(GitHubCrawlerTelemetry.AttributeServerAddress, _ApiHost);
                 activity.SetTag(GitHubCrawlerTelemetry.AttributeUrlFull, apiUrl);
             }
 
@@ -319,7 +423,7 @@
 
             try
             {
-                using (HttpResponseMessage response = await _httpClient.GetAsync(apiUrl, cancellationToken).ConfigureAwait(false))
+                using (HttpResponseMessage response = await client.GetAsync(apiUrl, cancellationToken).ConfigureAwait(false))
                 {
                     statusCode = (int)response.StatusCode;
                     activity?.SetTag(GitHubCrawlerTelemetry.AttributeHttpResponseStatusCode, statusCode);
@@ -327,23 +431,13 @@
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        Exception failure;
-
-                        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                            failure = new Exception($"Repository not found: {owner}/{repo}");
-                        else if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-                            failure = new Exception("API rate limit exceeded. Consider using an authentication token.");
-                        else
-                            failure = new Exception($"API request failed: {response.StatusCode}");
-
-                        failure.Data[CrawlerInstrumentation.ErrorTypeDataKey] = CrawlerInstrumentation.StatusErrorType(response.StatusCode);
-                        throw failure;
+                        throw CreateStatusException(response, repository);
                     }
 
                     string json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                    List<GitHubContent> items = JsonSerializer.Deserialize<List<GitHubContent>>(json);
+                    List<GitHubContent> items = JsonSerializer.Deserialize<List<GitHubContent>>(json) ?? new List<GitHubContent>();
 
-                    activity?.SetTag(GitHubCrawlerTelemetry.AttributeItems, items?.Count ?? 0);
+                    activity?.SetTag(GitHubCrawlerTelemetry.AttributeItems, items.Count);
                     CrawlerInstrumentation.ItemsDiscovered(items);
                     CrawlerInstrumentation.MarkSuccess(activity);
                     CrawlerInstrumentation.GitHubRequestCompleted(
@@ -364,91 +458,59 @@
             }
         }
 
+        private static GitHubCrawlerException CreateStatusException(HttpResponseMessage response, GitHubRepositoryReference repository)
+        {
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return new GitHubRepositoryNotFoundException(repository.Owner, repository.Repository);
+
+            if (response.StatusCode == HttpStatusCode.Forbidden || response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                long? remaining = ReadLongHeader(response, "X-RateLimit-Remaining");
+                long? resetSeconds = ReadLongHeader(response, "X-RateLimit-Reset");
+                DateTimeOffset? reset = resetSeconds.HasValue ? DateTimeOffset.FromUnixTimeSeconds(resetSeconds.Value) : null;
+                return new GitHubRateLimitException(response.StatusCode, remaining, reset);
+            }
+
+            return new GitHubCrawlerException($"API request failed: {response.StatusCode}", response.StatusCode);
+        }
+
+        private static long? ReadLongHeader(HttpResponseMessage response, string name)
+        {
+            if (!response.Headers.TryGetValues(name, out IEnumerable<string>? values)) return null;
+
+            string? raw = values.FirstOrDefault();
+            if (long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsed)) return parsed;
+            return null;
+        }
+
         private void RecordRequestException(
-            Activity activity,
+            Activity? activity,
             string gitHubOperation,
             int statusCode,
             long start,
             Exception exception,
-            System.Threading.CancellationToken cancellationToken)
+            CancellationToken cancellationToken)
         {
             string outcome = CrawlerInstrumentation.ClassifyOutcome(exception, cancellationToken);
-            string errorType = outcome == GitHubCrawlerTelemetry.OutcomeFailure ? CrawlerInstrumentation.ClassifyErrorType(exception) : null;
+            string? errorType = outcome == GitHubCrawlerTelemetry.OutcomeFailure ? CrawlerInstrumentation.ClassifyErrorType(exception) : null;
 
             CrawlerInstrumentation.MarkFailure(activity, outcome, errorType, exception.Message, exception);
             CrawlerInstrumentation.GitHubRequestCompleted(
                 gitHubOperation, _Auth, statusCode, outcome, errorType, CrawlerInstrumentation.ElapsedSeconds(start));
         }
 
-        private (string owner, string repo) ParseGitUrl(string gitUrl)
+        private HttpClient GetClient()
         {
-            if (gitUrl.EndsWith(".git"))
-            {
-                gitUrl = gitUrl.Substring(0, gitUrl.Length - 4);
-            }
-
-            if (gitUrl.StartsWith("https://github.com/") || gitUrl.StartsWith("http://github.com/"))
-            {
-                var parts = gitUrl.Replace("https://github.com/", "")
-                                  .Replace("http://github.com/", "")
-                                  .Split('/');
-                if (parts.Length >= 2)
-                {
-                    return (parts[0], parts[1]);
-                }
-            }
-            else if (gitUrl.StartsWith("git@github.com:"))
-            {
-                var parts = gitUrl.Replace("git@github.com:", "").Split('/');
-                if (parts.Length >= 2)
-                {
-                    return (parts[0], parts[1]);
-                }
-            }
-
-            return (null, null);
+            HttpClient? client = _HttpClient;
+            if (_Disposed || client == null) throw new ObjectDisposedException(nameof(GitHubRepoCrawler));
+            return client;
         }
 
-        /// <summary>
-        /// Throws an ObjectDisposedException if this instance has been disposed.
-        /// </summary>
         private void ThrowIfDisposed()
         {
-            if (_disposed)
+            if (_Disposed)
             {
                 throw new ObjectDisposedException(nameof(GitHubRepoCrawler));
-            }
-        }
-
-        /// <summary>
-        /// Releases all resources used by the GitHubRepoCrawler.
-        /// </summary>
-        public void Dispose()
-        {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
-
-        /// <summary>
-        /// Releases the unmanaged resources used by the GitHubRepoCrawler and optionally releases the managed resources.
-        /// </summary>
-        /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposed)
-            {
-                if (disposing)
-                {
-                    // Dispose managed resources
-                    _httpClient?.Dispose();
-                    _httpClient = null;
-                }
-
-                CrawlerInstrumentation.CrawlerDisposed(_Auth);
-
-                // Note: If there were unmanaged resources, they would be freed here
-
-                _disposed = true;
             }
         }
     }

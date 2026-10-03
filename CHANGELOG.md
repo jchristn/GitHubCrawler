@@ -2,6 +2,17 @@
 
 ## Current Version
 
+v1.2.0
+
+- Specific exception types: `GitHubCrawlerException` (with `StatusCode`), `GitHubRepositoryNotFoundException` (404, with `Owner` and `Repository`), and `GitHubRateLimitException` (403 or 429, with `RateLimitRemaining` and `RateLimitReset`). All derive from `Exception`, and messages are unchanged, so existing `catch (Exception)` handlers keep working
+- HTTP 429 is now reported as `GitHubRateLimitException` (previously a generic "API request failed: TooManyRequests")
+- New `ApiBaseUrl` property (GitHub Enterprise Server support) and `UserAgent` property, with `DefaultApiBaseUrl` and `DefaultUserAgent` constants
+- `GetFileContentsAsync` now disposes the HTTP response after buffering the body
+- A directory listing whose body is JSON `null` now yields nothing instead of throwing `NullReferenceException`
+- Nullable reference type annotations across the public API
+- Removed the unused `Inputty` package dependency
+- Internal code style cleanup (no behavior change)
+
 v1.1.0
 
 - Built-in telemetry: metrics and traces through a BCL `Meter` and `ActivitySource` named `GitHubCrawler` (no exporter or SDK dependency, near-zero cost when unobserved)

@@ -6,38 +6,72 @@
     <members>
         <member name="T:GitHubCrawler.GitHubContent">
             <summary>
-            GitHub content.
+            One entry returned by the GitHub Contents API for a directory listing.
+            All properties are null when the corresponding JSON field is absent or null.
+            Thread safety: instances are not synchronized; do not mutate an instance while other threads read it.
             </summary>
         </member>
         <member name="P:GitHubCrawler.GitHubContent.Name">
             <summary>
-            Name.
+            Entry name (for example "README.md"). May be null.
             </summary>
         </member>
         <member name="P:GitHubCrawler.GitHubContent.Path">
             <summary>
-            Path.
+            Repository-relative path (for example "docs/README.md"). May be null.
             </summary>
         </member>
         <member name="P:GitHubCrawler.GitHubContent.Type">
             <summary>
-            Type.
+            Entry type: "file", "dir", "symlink", or "submodule". May be null.
             </summary>
         </member>
         <member name="P:GitHubCrawler.GitHubContent.HtmlUrl">
             <summary>
-            HTML URL.
+            URL of the entry on github.com. May be null.
             </summary>
         </member>
         <member name="P:GitHubCrawler.GitHubContent.DownloadUrl">
             <summary>
-            Download URL.
+            Raw download URL. Null for directories and submodules.
             </summary>
         </member>
         <member name="M:GitHubCrawler.GitHubContent.#ctor">
             <summary>
-            GitHub content.
+            Initializes a new instance with all properties null.
             </summary>
+        </member>
+        <member name="T:GitHubCrawler.GitHubCrawlerException">
+            <summary>
+            Base exception for failures reported by the GitHub API or raw content host while crawling.
+            Derives from <see cref="T:System.Exception"/>, so existing handlers that catch <see cref="T:System.Exception"/> continue to work.
+            Instances are immutable after construction and are safe to share across threads.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubCrawlerException.StatusCode">
+            <summary>
+            The HTTP status code returned by GitHub, or null when the failure did not come from an HTTP response.
+            </summary>
+        </member>
+        <member name="M:GitHubCrawler.GitHubCrawlerException.#ctor(System.String)">
+            <summary>
+            Initializes a new instance with a message.
+            </summary>
+            <param name="message">A message describing the failure.</param>
+        </member>
+        <member name="M:GitHubCrawler.GitHubCrawlerException.#ctor(System.String,System.Exception)">
+            <summary>
+            Initializes a new instance with a message and an inner exception.
+            </summary>
+            <param name="message">A message describing the failure.</param>
+            <param name="innerException">The exception that caused this failure. May be null.</param>
+        </member>
+        <member name="M:GitHubCrawler.GitHubCrawlerException.#ctor(System.String,System.Nullable{System.Net.HttpStatusCode})">
+            <summary>
+            Initializes a new instance with a message and the HTTP status code returned by GitHub.
+            </summary>
+            <param name="message">A message describing the failure.</param>
+            <param name="statusCode">The HTTP status code returned by GitHub. May be null.</param>
         </member>
         <member name="T:GitHubCrawler.GitHubCrawlerTelemetry">
             <summary>
@@ -309,49 +343,110 @@
         </member>
         <member name="T:GitHubCrawler.GitHubFileResponse">
             <summary>
-            GitHub file response.
+            The result of <see cref="M:GitHubCrawler.GitHubRepoCrawler.GetFileContentsAsync(System.String,System.Threading.CancellationToken)"/>: the fully buffered file body plus response metadata.
+            The object does not hold the underlying HTTP response, which has already been disposed.
+            Thread safety: instances are not synchronized; do not mutate an instance while other threads read it.
             </summary>
         </member>
         <member name="P:GitHubCrawler.GitHubFileResponse.Content">
             <summary>
-            Content.
+            Raw file bytes. Null only on a default-constructed instance; never null when returned by the crawler.
             </summary>
         </member>
         <member name="P:GitHubCrawler.GitHubFileResponse.ContentType">
             <summary>
-            Content type.
+            Content type of the response (for example "text/plain; charset=utf-8"). Null when the server sent none.
             </summary>
         </member>
         <member name="P:GitHubCrawler.GitHubFileResponse.StatusCode">
             <summary>
-            Status code.
+            HTTP status code of the response. Default: 0 on a default-constructed instance.
             </summary>
         </member>
         <member name="P:GitHubCrawler.GitHubFileResponse.Headers">
             <summary>
-            Headers.
+            Response headers (not content headers). Null only on a default-constructed instance.
             </summary>
         </member>
         <member name="P:GitHubCrawler.GitHubFileResponse.FinalUrl">
             <summary>
-            Final URL.
+            Final request URL after redirects. May be null when the response carried no request message.
             </summary>
         </member>
         <member name="M:GitHubCrawler.GitHubFileResponse.#ctor">
             <summary>
-            GitHub file response.
+            Initializes a new instance with all properties at their defaults.
             </summary>
+        </member>
+        <member name="T:GitHubCrawler.GitHubRateLimitException">
+            <summary>
+            Thrown when GitHub refuses a request with HTTP 403 or 429, which GitHub uses for rate limiting.
+            Supply a personal access token to raise the limit from 60 to 5,000 requests per hour.
+            Instances are immutable after construction and are safe to share across threads.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubRateLimitException.RateLimitRemaining">
+            <summary>
+            The X-RateLimit-Remaining value GitHub returned, or null when the header was absent or invalid.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubRateLimitException.RateLimitReset">
+            <summary>
+            The time at which the rate limit window resets (from X-RateLimit-Reset), or null when the header was absent or invalid.
+            </summary>
+        </member>
+        <member name="M:GitHubCrawler.GitHubRateLimitException.#ctor(System.Net.HttpStatusCode,System.Nullable{System.Int64},System.Nullable{System.DateTimeOffset})">
+            <summary>
+            Initializes a new instance.
+            </summary>
+            <param name="statusCode">The HTTP status code GitHub returned (403 or 429).</param>
+            <param name="rateLimitRemaining">The X-RateLimit-Remaining value, or null when unknown.</param>
+            <param name="rateLimitReset">The rate limit reset time, or null when unknown.</param>
         </member>
         <member name="T:GitHubCrawler.GitHubRepoCrawler">
             <summary>
-            GitHub repository crawler that implements IDisposable for proper resource cleanup.
+            GitHub repository crawler that discovers file URLs through the GitHub REST API (v3) and downloads file contents.
+            Implements <see cref="T:System.IDisposable"/>; the crawler owns its <see cref="T:System.Net.Http.HttpClient"/> and message handler.
+            Thread safety: <see cref="M:GitHubCrawler.GitHubRepoCrawler.GetRepositoryContentsAsync(System.String,System.Threading.CancellationToken)"/> and <see cref="M:GitHubCrawler.GitHubRepoCrawler.GetFileContentsAsync(System.String,System.Threading.CancellationToken)"/> may be called
+            concurrently from multiple threads. Set <see cref="P:GitHubCrawler.GitHubRepoCrawler.ApiBaseUrl"/> and <see cref="P:GitHubCrawler.GitHubRepoCrawler.UserAgent"/> before issuing requests;
+            changing them while requests are in flight is not supported. <see cref="M:GitHubCrawler.GitHubRepoCrawler.Dispose"/> must not race with in-flight calls.
             </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubRepoCrawler.DefaultApiBaseUrl">
+            <summary>
+            Default value of <see cref="P:GitHubCrawler.GitHubRepoCrawler.ApiBaseUrl"/>: the public GitHub REST API.
+            </summary>
+        </member>
+        <member name="F:GitHubCrawler.GitHubRepoCrawler.DefaultUserAgent">
+            <summary>
+            Default value of <see cref="P:GitHubCrawler.GitHubRepoCrawler.UserAgent"/>.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubRepoCrawler.ApiBaseUrl">
+            <summary>
+            Base URL of the GitHub REST API. Override it to target GitHub Enterprise Server (for example
+            "https://github.example.com/api/v3/"). Must be an absolute http or https URL.
+            Default: <see cref="F:GitHubCrawler.GitHubRepoCrawler.DefaultApiBaseUrl"/>. A trailing slash is optional.
+            Never null.
+            </summary>
+            <exception cref="T:System.ArgumentNullException">Thrown when set to null.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when set to a value that is not an absolute http or https URL.</exception>
+        </member>
+        <member name="P:GitHubCrawler.GitHubRepoCrawler.UserAgent">
+            <summary>
+            User-Agent header sent with every request. GitHub requires a User-Agent and recommends one that identifies
+            your application. Default: <see cref="F:GitHubCrawler.GitHubRepoCrawler.DefaultUserAgent"/>. Must not be null, empty, or whitespace.
+            Never null.
+            </summary>
+            <exception cref="T:System.ArgumentNullException">Thrown when set to null.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when set to an empty or whitespace value.</exception>
+            <exception cref="T:System.ObjectDisposedException">Thrown when set after the crawler has been disposed.</exception>
         </member>
         <member name="M:GitHubCrawler.GitHubRepoCrawler.#ctor(System.String)">
             <summary>
             Initializes a new instance of the GitHubRepoCrawler class.
             </summary>
-            <param name="token">Optional GitHub personal access token for authenticated requests.</param>
+            <param name="token">Optional GitHub personal access token for authenticated requests. Null or empty sends no Authorization header.</param>
         </member>
         <member name="M:GitHubCrawler.GitHubRepoCrawler.#ctor(System.Net.Http.HttpMessageHandler,System.String)">
             <summary>
@@ -360,42 +455,44 @@
             fake handler for testing.
             </summary>
             <param name="handler">The HTTP message handler used to send requests. The handler is owned by this instance and is disposed when the crawler is disposed.</param>
-            <param name="token">Optional GitHub personal access token for authenticated requests.</param>
+            <param name="token">Optional GitHub personal access token for authenticated requests. Null or empty sends no Authorization header.</param>
             <exception cref="T:System.ArgumentNullException">Thrown when the handler is null.</exception>
         </member>
         <member name="M:GitHubCrawler.GitHubRepoCrawler.GetRepositoryContentsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
-            Asynchronously retrieves all file URLs from a GitHub repository.
+            Asynchronously retrieves all file URLs from a GitHub repository, recursing into every directory.
             Emits the "githubcrawler crawl_repository" span with one "github contents.list" child per directory, and the
             githubcrawler.operation.* and githubcrawler.github.* metrics. See TELEMETRY.md.
             </summary>
-            <param name="gitUrl">The GitHub repository URL.</param>
+            <param name="gitUrl">The GitHub repository URL (https://github.com/owner/repo, optionally ending in .git, or git@github.com:owner/repo.git).</param>
             <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-            <returns>An async enumerable of file download URLs.</returns>
+            <returns>An async enumerable of file download URLs. Never null; items are never null or empty.</returns>
             <exception cref="T:System.ObjectDisposedException">Thrown when this method is called after the object has been disposed.</exception>
             <exception cref="T:System.ArgumentException">Thrown when the provided URL is invalid.</exception>
-            <exception cref="T:System.OperationCanceledException">Thrown when the operation is cancelled.</exception>
+            <exception cref="T:GitHubCrawler.GitHubRepositoryNotFoundException">Thrown when GitHub returns HTTP 404 for the repository or a directory.</exception>
+            <exception cref="T:GitHubCrawler.GitHubRateLimitException">Thrown when GitHub returns HTTP 403 or 429.</exception>
+            <exception cref="T:GitHubCrawler.GitHubCrawlerException">Thrown when GitHub returns any other unsuccessful status code.</exception>
+            <exception cref="T:System.Text.Json.JsonException">Thrown when a directory listing response is not valid JSON.</exception>
+            <exception cref="T:System.Net.Http.HttpRequestException">Thrown when the request fails at the network level.</exception>
+            <exception cref="T:System.OperationCanceledException">Thrown when the operation is cancelled or times out.</exception>
         </member>
         <member name="M:GitHubCrawler.GitHubRepoCrawler.GetFileContentsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
-            Asynchronously downloads file contents from a GitHub URL.
+            Asynchronously downloads file contents from a GitHub URL. The response is fully buffered into
+            <see cref="P:GitHubCrawler.GitHubFileResponse.Content"/> and the underlying HTTP response is disposed before returning.
+            A response with a status code of 400 or above is returned to the caller (it is not thrown), and is recorded in
+            telemetry as a failure with error.type set to the status code.
             Emits the "githubcrawler get_file_contents" span with a "github file.download" child, and the
             githubcrawler.operation.*, githubcrawler.github.*, and githubcrawler.file.download.size metrics.
-            A response with a status code of 400 or above is returned to the caller as before, and is recorded as a failure
-            with error.type set to the status code.
             </summary>
             <param name="url">The file download URL.</param>
             <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-            <returns>A GitHubFileResponse containing the file content and metadata.</returns>
+            <returns>A GitHubFileResponse containing the file content and metadata. Never null.</returns>
             <exception cref="T:System.ObjectDisposedException">Thrown when this method is called after the object has been disposed.</exception>
             <exception cref="T:System.ArgumentException">Thrown when the URL is null or empty.</exception>
-            <exception cref="T:System.Exception">Thrown when the file cannot be fetched.</exception>
-            <exception cref="T:System.OperationCanceledException">Thrown when the operation is cancelled.</exception>
-        </member>
-        <member name="M:GitHubCrawler.GitHubRepoCrawler.ThrowIfDisposed">
-            <summary>
-            Throws an ObjectDisposedException if this instance has been disposed.
-            </summary>
+            <exception cref="T:System.InvalidOperationException">Thrown when the URL is not an absolute URL.</exception>
+            <exception cref="T:System.Net.Http.HttpRequestException">Thrown when the request fails at the network level.</exception>
+            <exception cref="T:System.OperationCanceledException">Thrown when the operation is cancelled or times out.</exception>
         </member>
         <member name="M:GitHubCrawler.GitHubRepoCrawler.Dispose">
             <summary>
@@ -407,6 +504,30 @@
             Releases the unmanaged resources used by the GitHubRepoCrawler and optionally releases the managed resources.
             </summary>
             <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
+        </member>
+        <member name="T:GitHubCrawler.GitHubRepositoryNotFoundException">
+            <summary>
+            Thrown when GitHub returns HTTP 404 for a repository contents request, meaning the repository or path does not exist,
+            or is private and the crawler has no token with access to it.
+            Instances are immutable after construction and are safe to share across threads.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubRepositoryNotFoundException.Owner">
+            <summary>
+            The repository owner that was requested. Never null.
+            </summary>
+        </member>
+        <member name="P:GitHubCrawler.GitHubRepositoryNotFoundException.Repository">
+            <summary>
+            The repository name that was requested. Never null.
+            </summary>
+        </member>
+        <member name="M:GitHubCrawler.GitHubRepositoryNotFoundException.#ctor(System.String,System.String)">
+            <summary>
+            Initializes a new instance for the specified repository.
+            </summary>
+            <param name="owner">The repository owner. Null is stored as an empty string.</param>
+            <param name="repository">The repository name. Null is stored as an empty string.</param>
         </member>
     </members>
 </doc>

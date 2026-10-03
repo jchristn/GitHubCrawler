@@ -8,10 +8,10 @@ namespace GitHubCrawler
     {
         private readonly string _Operation;
         private readonly long _StartTimestamp;
-        private readonly Activity _Activity;
+        private readonly Activity? _Activity;
         private readonly CancellationToken _Token;
         private int _Completed = 0;
-        private string _Outcome = null;
+        private string? _Outcome = null;
 
         private OperationScope(string operation, string spanName, CancellationToken token)
         {
@@ -23,7 +23,7 @@ namespace GitHubCrawler
             CrawlerInstrumentation.OperationStarted(operation);
         }
 
-        internal Activity Activity
+        internal Activity? Activity
         {
             get { return _Activity; }
         }
@@ -33,7 +33,7 @@ namespace GitHubCrawler
             get { return _Activity != null ? _Activity.Context : default(ActivityContext); }
         }
 
-        internal string Outcome
+        internal string? Outcome
         {
             get { return _Outcome; }
         }
@@ -47,7 +47,7 @@ namespace GitHubCrawler
         {
             if (!TryComplete(GitHubCrawlerTelemetry.OutcomeSuccess)) return;
             CrawlerInstrumentation.MarkSuccess(_Activity);
-            Finish(null);
+            Finish(GitHubCrawlerTelemetry.OutcomeSuccess, null);
         }
 
         internal void Fail(Exception exception)
@@ -55,23 +55,23 @@ namespace GitHubCrawler
             string outcome = CrawlerInstrumentation.ClassifyOutcome(exception, _Token);
             if (!TryComplete(outcome)) return;
 
-            string errorType = outcome == GitHubCrawlerTelemetry.OutcomeFailure ? CrawlerInstrumentation.ClassifyErrorType(exception) : null;
+            string? errorType = outcome == GitHubCrawlerTelemetry.OutcomeFailure ? CrawlerInstrumentation.ClassifyErrorType(exception) : null;
             CrawlerInstrumentation.MarkFailure(_Activity, outcome, errorType, exception?.Message, exception);
-            Finish(errorType);
+            Finish(outcome, errorType);
         }
 
         internal void Fail(string errorType, string description)
         {
             if (!TryComplete(GitHubCrawlerTelemetry.OutcomeFailure)) return;
             CrawlerInstrumentation.MarkFailure(_Activity, GitHubCrawlerTelemetry.OutcomeFailure, errorType, description, null);
-            Finish(errorType);
+            Finish(GitHubCrawlerTelemetry.OutcomeFailure, errorType);
         }
 
         internal void Abandon()
         {
             if (!TryComplete(GitHubCrawlerTelemetry.OutcomeAbandoned)) return;
             CrawlerInstrumentation.MarkFailure(_Activity, GitHubCrawlerTelemetry.OutcomeAbandoned, null, "Enumeration stopped by the caller before completion", null);
-            Finish(null);
+            Finish(GitHubCrawlerTelemetry.OutcomeAbandoned, null);
         }
 
         private bool TryComplete(string outcome)
@@ -81,9 +81,9 @@ namespace GitHubCrawler
             return true;
         }
 
-        private void Finish(string errorType)
+        private void Finish(string outcome, string? errorType)
         {
-            CrawlerInstrumentation.OperationCompleted(_Operation, _Outcome, errorType, CrawlerInstrumentation.ElapsedSeconds(_StartTimestamp));
+            CrawlerInstrumentation.OperationCompleted(_Operation, outcome, errorType, CrawlerInstrumentation.ElapsedSeconds(_StartTimestamp));
 
             try
             {

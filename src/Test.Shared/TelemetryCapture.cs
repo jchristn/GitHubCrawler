@@ -88,10 +88,10 @@ namespace Test.Shared
             _ActivityListener.Dispose();
         }
 
-        private void Add(Instrument instrument, double value, ReadOnlySpan<KeyValuePair<string, object>> tags)
+        private void Add(Instrument instrument, double value, ReadOnlySpan<KeyValuePair<string, object?>> tags)
         {
             Dictionary<string, string> copy = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (KeyValuePair<string, object> tag in tags) copy[tag.Key] = Convert.ToString(tag.Value, System.Globalization.CultureInfo.InvariantCulture);
+            foreach (KeyValuePair<string, object?> tag in tags) copy[tag.Key] = Convert.ToString(tag.Value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
 
             lock (_Lock) _Measurements.Add(new CapturedMeasurement(instrument.Name, instrument.Unit, value, copy));
         }

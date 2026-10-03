@@ -15,14 +15,14 @@ namespace Test.Automated
     {
         private static async Task<int> Main(string[] args)
         {
-            string resultsPath = null;
+            string? resultsPath = null;
 
             for (int i = 0; i < args.Length; i++)
             {
                 if (string.Equals(args[i], "--results", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
                 {
                     resultsPath = args[i + 1];
-                    string resultsDirectory = Path.GetDirectoryName(resultsPath);
+                    string? resultsDirectory = Path.GetDirectoryName(resultsPath);
                     if (!string.IsNullOrEmpty(resultsDirectory))
                     {
                         Directory.CreateDirectory(resultsDirectory);

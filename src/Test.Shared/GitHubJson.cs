@@ -11,7 +11,7 @@ namespace Test.Shared
         /// <summary>
         /// Wraps raw item JSON fragments into a JSON array.
         /// </summary>
-        internal static string Array(params string[] items)
+        internal static string Array(params string[]? items)
         {
             return "[" + string.Join(",", items ?? System.Array.Empty<string>()) + "]";
         }
@@ -19,7 +19,7 @@ namespace Test.Shared
         /// <summary>
         /// Builds a JSON object representing a file entry (with a non-null download_url).
         /// </summary>
-        internal static string File(string name, string path, string downloadUrl)
+        internal static string File(string name, string path, string? downloadUrl)
         {
             return "{"
                 + "\"name\":" + Quote(name) + ","
@@ -44,7 +44,7 @@ namespace Test.Shared
                 + "}";
         }
 
-        private static string Quote(string value)
+        private static string Quote(string? value)
         {
             if (value == null) return "null";
             return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";

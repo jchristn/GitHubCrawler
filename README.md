@@ -16,6 +16,8 @@ GitHubCrawler is a lightweight C# library for recursively discovering and downlo
 * 📁 **Recursive Discovery** - Automatically traverses entire repository structure
 * 🔍 **Metadata Included** - Returns full HTTP response metadata alongside file content
 * 🚀 **Minimal Dependencies** - Lightweight with minimal external dependencies
+* 🎯 **Specific Exceptions** (v1.2.0) - `GitHubRepositoryNotFoundException`, `GitHubRateLimitException`, and `GitHubCrawlerException` instead of a bare `Exception`
+* ⚙️ **GitHub Enterprise Support** (v1.2.0) - Configurable `ApiBaseUrl` and `UserAgent`
 * 📈 **Built-in Telemetry** (v1.1.0) - OpenTelemetry-compatible metrics and traces through a `Meter` and `ActivitySource` named `GitHubCrawler`, free until a host subscribes
 
 ## Installation
@@ -67,13 +69,25 @@ static async Task Main(string[] args)
 ### Constructor
 
 ```csharp
-public GitHubRepoCrawler(string token = null)
+public GitHubRepoCrawler(string? token = null)
+public GitHubRepoCrawler(HttpMessageHandler handler, string? token = null)
 ```
 
 Creates a new crawler instance. Supply a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) for:
 - Access to private repositories
 - Higher API rate limits (5,000 requests/hour vs 60 for unauthenticated)
 - Avoiding rate limit errors in large repositories
+
+The second overload accepts your own `HttpMessageHandler` (for a proxy, custom TLS, or testing). The crawler owns and disposes it.
+
+### Properties
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `ApiBaseUrl` | `https://api.github.com/` | GitHub REST API base URL. Set it to target GitHub Enterprise Server, for example `https://github.example.com/api/v3/`. Must be an absolute http or https URL; a trailing slash is added if missing. |
+| `UserAgent` | `GitHubRepoCrawler/1.0` | User-Agent sent with every request. GitHub asks that it identify your application. Must not be empty. |
+
+Set these before issuing requests.
 
 ### Methods
 
@@ -99,8 +113,12 @@ Recursively discovers all file download URLs in a repository.
 **Exceptions:**
 - `ArgumentException`: Invalid repository URL format
 - `ObjectDisposedException`: Crawler has been disposed
-- `OperationCanceledException`: Operation was cancelled
-- `Exception`: API errors (rate limits, network issues, etc.)
+- `OperationCanceledException`: Operation was cancelled or timed out
+- `GitHubRepositoryNotFoundException`: GitHub returned 404 (missing repository, or private without a token). Exposes `Owner` and `Repository`
+- `GitHubRateLimitException`: GitHub returned 403 or 429. Exposes `RateLimitRemaining` and `RateLimitReset`
+- `GitHubCrawlerException`: Any other unsuccessful GitHub status. Exposes `StatusCode`; the two exceptions above derive from it
+- `JsonException`: A directory listing response was not valid JSON
+- `HttpRequestException`: Network failure
 
 #### GetFileContentsAsync
 
@@ -126,8 +144,10 @@ Downloads file content from a GitHub raw URL.
 **Exceptions:**
 - `ArgumentException`: URL is null or empty
 - `ObjectDisposedException`: Crawler has been disposed
-- `OperationCanceledException`: Operation was cancelled
-- `Exception`: Download failed
+- `OperationCanceledException`: Operation was cancelled or timed out
+- `HttpRequestException`: Network failure
+
+A non-success status (for example 404) is not thrown; check `StatusCode` on the result. The body is fully buffered and the HTTP response is disposed before the method returns.
 
 ### Resource Management
 
@@ -196,13 +216,17 @@ catch (ArgumentException ex)
 {
     Console.WriteLine($"Invalid URL: {ex.Message}");
 }
-catch (Exception ex) when (ex.Message.Contains("rate limit"))
+catch (GitHubRepositoryNotFoundException ex)
 {
-    Console.WriteLine("GitHub API rate limit exceeded. Please authenticate or wait.");
+    Console.WriteLine($"Repository {ex.Owner}/{ex.Repository} not found (or private without a token).");
 }
-catch (Exception ex)
+catch (GitHubRateLimitException ex)
 {
-    Console.WriteLine($"Error: {ex.Message}");
+    Console.WriteLine($"GitHub API rate limit exceeded. Resets at {ex.RateLimitReset}. Please authenticate or wait.");
+}
+catch (GitHubCrawlerException ex)
+{
+    Console.WriteLine($"GitHub returned {ex.StatusCode}: {ex.Message}");
 }
 ```
 
@@ -253,7 +277,7 @@ See [TELEMETRY.md](TELEMETRY.md) for the full metrics and spans catalog, label v
 | Personal Access Token | 5,000 |
 | GitHub App | 5,000-15,000 |
 
-When rate limited, the API returns status code 403 with a "rate limit exceeded" message.
+When rate limited, the API returns status code 403 or 429, and the crawler throws `GitHubRateLimitException`.
 
 ## Contributing
 
